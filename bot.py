@@ -26,102 +26,60 @@ if not os.path.exists(BASE_DATA_DIR):
     os.makedirs(BASE_DATA_DIR)
 
 # Biến để theo dõi thư mục hiện tại người dùng đang làm việc (mặc định)
-user_context = {} 
+# BIẾN DÙNG CHUNG CHO TẤT CẢ USER
+shared_context = {"current_folder": None}
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    status = shared_context['current_folder'] or "Chưa chọn"
     await update.message.reply_text(
-        "🤖 Bot DFL đa kịch bản đã sẵn sàng!\n\n"
-        "📂 **Quản lý:**\n"
-        "/create <tên> - Tạo thư mục kịch bản\n"
-        "/set <tên> - Chọn thư mục để làm việc\n"
-        "🗑️ **Xóa dữ liệu:**\n"
-        "/delete - Xóa sạch file trong thư mục hiện tại\n"
-        "/delete all - Xóa tất cả thư mục và file hệ thống\n"
-        "📊 **Xử lý:**\n"
-        "/export - Xuất biểu đồ Acc & ASR riêng biệt"
+        f"👥 **Chế độ dùng chung (Shared Mode)**\n"
+        f"📂 Thư mục hiện tại: `{status}`\n\n"
+        "/list - Xem tất cả kịch bản đang có\n"
+        "/create <tên> - Tạo kịch bản mới\n"
+        "/set <tên> - Chọn kịch bản (áp dụng cho mọi người)\n"
+        "/export - Vẽ biểu đồ dữ liệu chung\n"
+        "/delete - Xóa dữ liệu trong kịch bản hiện tại"
     )
 
-# Lệnh tạo thư mục kịch bản
+# Xem danh sách các kịch bản đang có
+async def list_folders(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    folders = [d for d in os.listdir(BASE_DATA_DIR) if os.path.isdir(os.path.join(BASE_DATA_DIR, d))]
+    if not folders:
+        await update.message.reply_text("Chưa có kịch bản nào được tạo.")
+    else:
+        text = "📂 **Danh sách kịch bản:**\n" + "\n".join([f"- `{f}`" for f in folders])
+        await update.message.reply_text(text)
+
 async def create_folder(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not context.args:
-        await update.message.reply_text("Vui lòng nhập tên thư mục. Ví dụ: /create label_flipping")
-        return
-    
+    if not context.args: return
     for folder_name in context.args:
         path = os.path.join(BASE_DATA_DIR, folder_name)
         if not os.path.exists(path):
             os.makedirs(path)
-            await update.message.reply_text(f"✅ Đã tạo thư mục: {folder_name}")
-        else:
-            await update.message.reply_text(f"ℹ️ Thư mục {folder_name} đã tồn tại.")
+            await update.message.reply_text(f"✅ Đã tạo: {folder_name}")
 
-# Lệnh chọn thư mục làm việc
 async def set_folder(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not context.args:
-        await update.message.reply_text("Vui lòng nhập tên thư mục đã tạo.")
-        return
-    
+    if not context.args: return
     folder_name = context.args[0]
-    path = os.path.join(BASE_DATA_DIR, folder_name)
-    
-    if os.path.exists(path):
-        user_context[update.effective_user.id] = folder_name
-        await update.message.reply_text(f"📂 Đang làm việc tại: {folder_name}")
+    if os.path.exists(os.path.join(BASE_DATA_DIR, folder_name)):
+        shared_context["current_folder"] = folder_name
+        await update.message.reply_text(f"📢 Đã chuyển sang kịch bản: `{folder_name}`\n(Mọi file upload bây giờ sẽ vào đây)")
     else:
-        await update.message.reply_text(f"❌ Thư mục {folder_name} không tồn tại. Hãy dùng /create trước.")
+        await update.message.reply_text("❌ Không tìm thấy thư mục.")
 
-# Lệnh xóa data trong thư mục
-async def delete_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    
-    # Trường hợp: /delete all
-    if context.args and context.args[0].lower() == "all":
-        for filename in os.listdir(BASE_DATA_DIR):
-            file_path = os.path.join(BASE_DATA_DIR, filename)
-            try:
-                if os.path.isfile(file_path) or os.path.islink(file_path):
-                    os.unlink(file_path)
-                elif os.path.isdir(file_path):
-                    shutil.rmtree(file_path)
-            except Exception as e:
-                await update.message.reply_text(f"Lỗi khi xóa {file_path}: {e}")
-        
-        # Reset lại thư mục gốc và context
-        if not os.path.exists(BASE_DATA_DIR): os.makedirs(BASE_DATA_DIR)
-        user_context.clear()
-        await update.message.reply_text("💥 Đã xóa sạch toàn bộ dữ liệu hệ thống.")
-        return
-
-    # Trường hợp: /delete (chỉ xóa trong thư mục hiện tại)
-    if user_id not in user_context:
-        await update.message.reply_text("⚠️ Bạn chưa chọn thư mục nào. Hãy dùng /set.")
-        return
-
-    current_folder = user_context[user_id]
-    folder_path = os.path.join(BASE_DATA_DIR, current_folder)
-    
-    files = [f for f in os.listdir(folder_path) if f.endswith('.csv')]
-    for f in files:
-        os.remove(os.path.join(folder_path, f))
-    
-    await update.message.reply_text(f"🗑️ Đã xóa sạch các file .csv trong kịch bản: {current_folder}")
-# Xử lý nhận file CSV
 async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    if user_id not in user_context:
-        await update.message.reply_text("⚠️ Vui lòng dùng lệnh /set <tên_thư_mục> trước khi gửi file.")
+    current = shared_context["current_folder"]
+    if not current:
+        await update.message.reply_text("⚠️ Hãy dùng /set để chọn thư mục trước.")
         return
-
+    
     file = await update.message.document.get_file()
     file_name = update.message.document.file_name
-    current_folder = user_context[user_id]
-    
     if file_name.endswith('.csv'):
-        file_path = os.path.join(BASE_DATA_DIR, current_folder, file_name)
-        await file.download_to_drive(file_path)
-        await update.message.reply_text(f"📥 Đã lưu {file_name} vào thư mục {current_folder}")
-    else:
-        await update.message.reply_text("❌ Chỉ chấp nhận file .csv")
+        path = os.path.join(BASE_DATA_DIR, current, file_name)
+        await file.download_to_drive(path)
+        user_name = update.effective_user.first_name
+        await update.message.reply_text(f"📥 {user_name} đã upload: `{file_name}` vào `{current}`")
 
 # Xuất biểu đồ tách riêng
 async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -177,6 +135,19 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
     plt.close(fig_acc)
     plt.close(fig_asr)
 
+# Thêm Handler delete như yêu cầu cũ nhưng áp dụng cho shared_context
+async def delete_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    current = shared_context["current_folder"]
+    if context.args and context.args[0] == "all":
+        shutil.rmtree(BASE_DATA_DIR)
+        os.makedirs(BASE_DATA_DIR)
+        shared_context["current_folder"] = None
+        await update.message.reply_text("💥 Toàn bộ hệ thống đã bị xóa sạch.")
+    elif current:
+        path = os.path.join(BASE_DATA_DIR, current)
+        for f in os.listdir(path): os.remove(os.path.join(path, f))
+        await update.message.reply_text(f"🗑️ Đã xóa sạch dữ liệu trong `{current}`")
+
 if __name__ == '__main__':
     # 1. Chạy Flask trong một thread riêng để không chặn Bot
     threading.Thread(target=run_flask, daemon=True).start()
@@ -193,4 +164,5 @@ if __name__ == '__main__':
     app_bot.add_handler(MessageHandler(filters.Document.ALL, handle_document))
     print("Flask và Bot đang chạy đồng thời...")
     app_bot.run_polling()
+
 
