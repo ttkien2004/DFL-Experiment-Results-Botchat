@@ -30,11 +30,15 @@ user_context = {}
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "Bot DFL đa kịch bản đã sẵn sàng!\n\n"
-        "1. /create <tên_thư_mục>: Tạo kịch bản mới (vd: /create label_flipping)\n"
-        "2. /set <tên_thư_mục>: Chọn thư mục để upload file\n"
-        "3. Gửi file .csv để lưu vào thư mục đã chọn\n"
-        "4. /export: Xuất biểu đồ từ thư mục hiện tại"
+        "🤖 Bot DFL đa kịch bản đã sẵn sàng!\n\n"
+        "📂 **Quản lý:**\n"
+        "/create <tên> - Tạo thư mục kịch bản\n"
+        "/set <tên> - Chọn thư mục để làm việc\n"
+        "🗑️ **Xóa dữ liệu:**\n"
+        "/delete - Xóa sạch file trong thư mục hiện tại\n"
+        "/delete all - Xóa tất cả thư mục và file hệ thống\n"
+        "📊 **Xử lý:**\n"
+        "/export - Xuất biểu đồ Acc & ASR riêng biệt"
     )
 
 # Lệnh tạo thư mục kịch bản
@@ -66,6 +70,41 @@ async def set_folder(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text(f"❌ Thư mục {folder_name} không tồn tại. Hãy dùng /create trước.")
 
+# Lệnh xóa data trong thư mục
+async def delete_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    
+    # Trường hợp: /delete all
+    if context.args and context.args[0].lower() == "all":
+        for filename in os.listdir(BASE_DATA_DIR):
+            file_path = os.path.join(BASE_DATA_DIR, filename)
+            try:
+                if os.path.isfile(file_path) or os.path.islink(file_path):
+                    os.unlink(file_path)
+                elif os.path.isdir(file_path):
+                    shutil.rmtree(file_path)
+            except Exception as e:
+                await update.message.reply_text(f"Lỗi khi xóa {file_path}: {e}")
+        
+        # Reset lại thư mục gốc và context
+        if not os.path.exists(BASE_DATA_DIR): os.makedirs(BASE_DATA_DIR)
+        user_context.clear()
+        await update.message.reply_text("💥 Đã xóa sạch toàn bộ dữ liệu hệ thống.")
+        return
+
+    # Trường hợp: /delete (chỉ xóa trong thư mục hiện tại)
+    if user_id not in user_context:
+        await update.message.reply_text("⚠️ Bạn chưa chọn thư mục nào. Hãy dùng /set.")
+        return
+
+    current_folder = user_context[user_id]
+    folder_path = os.path.join(BASE_DATA_DIR, current_folder)
+    
+    files = [f for f in os.listdir(folder_path) if f.endswith('.csv')]
+    for f in files:
+        os.remove(os.path.join(folder_path, f))
+    
+    await update.message.reply_text(f"🗑️ Đã xóa sạch các file .csv trong kịch bản: {current_folder}")
 # Xử lý nhận file CSV
 async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -150,6 +189,8 @@ if __name__ == '__main__':
     app_bot.add_handler(CommandHandler("set", set_folder))
     app_bot.add_handler(CommandHandler("export", export_charts))
     app_bot.add_handler(MessageHandler(filters.Document.ALL, handle_document))
-
+    app_bot.add_handler(CommandHandler("delete", delete_data))
+    app_bot.add_handler(MessageHandler(filters.Document.ALL, handle_document))
     print("Flask và Bot đang chạy đồng thời...")
     app_bot.run_polling()
+
