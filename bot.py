@@ -86,17 +86,17 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
     current = shared_context["current_folder"]
     if not current:
-        await update.message.reply_text("⚠️ Hãy dùng /set để chọn thư mục.")
+        await update.message.reply_text("⚠️ Hãy dùng /set để chọn kịch bản trước.")
         return
 
     folder_path = os.path.join(BASE_DATA_DIR, current)
     if not os.path.exists(folder_path):
-        await update.message.reply_text(f"❌ Thư mục {current} không tồn tại.")
+        await update.message.reply_text(f"❌ Thư mục `{current}` không tồn tại.")
         return
 
     files = [f for f in os.listdir(folder_path) if f.endswith('.csv')]
     if not files:
-        await update.message.reply_text("📂 Thư mục trống, không có file CSV nào.")
+        await update.message.reply_text(f"📂 Kịch bản `{current}` đang trống. Hãy upload file CSV.")
         return
 
     await update.message.reply_text(f"📊 Đang xử lý {len(files)} file dữ liệu...")
@@ -117,119 +117,114 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for file in files:
         file_path = os.path.join(folder_path, file)
         try:
-            # Lớp 1: Tự động dò tìm engine python 
+            # Logic đọc file bền bỉ: Thử Tự động -> Tab -> Phẩy
             try:
                 df = pd.read_csv(file_path, sep=None, engine='python')
             except:
-                df = pd.DataFrame() # Fallback
+                df = pd.DataFrame()
 
-            # Lớp 2: Nếu đọc ra < 2 cột, thử ép buộc đọc bằng Tab hoặc Phẩy
             if len(df.columns) < 2:
-                try:
-                    df = pd.read_csv(file_path, sep='\t')
-                except:
-                    pass
+                try: df = pd.read_csv(file_path, sep='\t')
+                except: pass
             if len(df.columns) < 2:
-                 try:
-                    df = pd.read_csv(file_path, sep=',')
-                 except:
-                    pass
+                 try: df = pd.read_csv(file_path, sep=',')
+                 except: pass
 
-            # Chuẩn hóa tên cột: Xóa khoảng trắng & đưa về dạng chuẩn
+            # Chuẩn hóa tên cột
             df.columns = df.columns.str.strip()
-            
-            # Map tên cột (xử lý case-insensitive: 'round' -> 'Round')
             col_map = {c.lower(): c for c in df.columns}
+            
             if 'round' in col_map: df.rename(columns={col_map['round']: 'Round'}, inplace=True)
             if 'accuracy' in col_map: df.rename(columns={col_map['accuracy']: 'Accuracy'}, inplace=True)
             if 'loss' in col_map: df.rename(columns={col_map['loss']: 'Loss'}, inplace=True)
             if 'asr' in col_map: df.rename(columns={col_map['asr']: 'ASR'}, inplace=True)
 
-            # Kiểm tra bắt buộc phải có Round và Accuracy
+            # Kiểm tra cột bắt buộc
             if 'Round' not in df.columns or 'Accuracy' not in df.columns:
-                print(f"⚠️ Bỏ qua {file}: Không tìm thấy cột Round/Accuracy. (Columns: {list(df.columns)})")
+                print(f"⚠️ Bỏ qua {file}: Thiếu cột Round/Accuracy")
                 continue
 
-            # Ép kiểu dữ liệu về số (tránh lỗi nếu file chứa text lạ)
+            # Ép kiểu số & Xử lý NaN nhẹ nhàng hơn
             df['Round'] = pd.to_numeric(df['Round'], errors='coerce')
             df['Accuracy'] = pd.to_numeric(df['Accuracy'], errors='coerce')
-            df.dropna(subset=['Round', 'Accuracy'], inplace=True) # Xóa dòng lỗi
+            
+            # Chỉ drop nếu Round HOẶC Accuracy bị NaN (quan trọng!)
+            df = df.dropna(subset=['Round', 'Accuracy'])
+            
+            if df.empty:
+                print(f"⚠️ File {file} rỗng sau khi lọc dữ liệu.")
+                continue
 
-            # Lấy nhãn từ tên file
             raw_label = file.replace('.csv', '').split('-')[-1]
             data_list.append({'label': raw_label, 'df': df})
             
         except Exception as e:
-            print(f"❌ Lỗi nghiêm trọng file {file}: {e}")
+            print(f"❌ Lỗi file {file}: {e}")
 
     if not data_list:
-        await update.message.reply_text("❌ Không đọc được dữ liệu hợp lệ. Vui lòng kiểm tra file CSV.")
+        await update.message.reply_text("❌ Không đọc được dữ liệu hợp lệ nào. Kiểm tra file CSV của bạn.")
         return
 
-    # --- BƯỚC 2: Sắp xếp (Sort) ---
-    # Sắp xếp theo số (nếu nhãn là số) để biểu đồ 10, 20, 30 hiển thị đúng thứ tự
+    # --- BƯỚC 2: Sắp xếp & Vẽ ---
     def sort_key(item):
         val = item['label']
         return int(val) if val.isdigit() else val
 
     data_list.sort(key=sort_key)
 
-    # --- BƯỚC 3: Vẽ biểu đồ ---
     for item in data_list:
         df = item['df']
         label = item['label']
 
-        # 1. Vẽ Accuracy
+        # 1. Acc
         ax_acc.plot(df['Round'], df['Accuracy'], marker='o', markersize=4, label=f"Model: {label}")
 
-        # 2. Vẽ Loss (Chỉ vẽ nếu cột tồn tại và có dữ liệu > 0)
+        # 2. Loss
         if 'Loss' in df.columns:
-            # Chuyển về số và bỏ NaN
             loss_clean = pd.to_numeric(df['Loss'], errors='coerce').dropna()
             if not loss_clean.empty:
                 has_loss = True
-                # Vẽ dựa trên index của loss_clean để khớp với Round tương ứng
                 valid_rounds = df.loc[loss_clean.index, 'Round']
                 ax_loss.plot(valid_rounds, loss_clean, linestyle='--', label=f"Loss: {label}")
 
-        # 3. Vẽ ASR (Attack)
+        # 3. ASR
         if 'ASR' in df.columns:
             asr_clean = pd.to_numeric(df['ASR'], errors='coerce').fillna(0)
             if asr_clean.max() > 0: 
                 has_asr = True
                 ax_asr.plot(df['Round'], asr_clean, marker='s', linestyle='-.', label=f"ASR: {label}")
 
-        # 4. Tính Convergence
+        # 4. Convergence
         reached = df[df['Accuracy'] >= CONV_THRESHOLD]
         if not reached.empty:
             convergence_data.append((str(label), reached['Round'].min()))
         else:
             convergence_data.append((str(label), df['Round'].max()))
 
-    # --- BƯỚC 4: Xuất ảnh và Gửi ---
+    # --- BƯỚC 3: Lưu & Gửi ---
     output_files = []
 
-    # Lưu Acc
+    # Acc
     ax_acc.set_title(f"Accuracy Comparison - {current}")
     ax_acc.set_xlabel("Rounds"); ax_acc.set_ylabel("Accuracy")
     ax_acc.legend(); ax_acc.grid(True)
     p_acc = f"acc_{current}.png"; fig_acc.savefig(p_acc); output_files.append(p_acc)
 
-    # Lưu Loss
+    # Loss
     if has_loss:
         ax_loss.set_title(f"Model Stability (Loss) - {current}")
         ax_loss.set_xlabel("Rounds"); ax_loss.set_ylabel("Loss")
         ax_loss.legend(); ax_loss.grid(True)
         p_loss = f"loss_{current}.png"; fig_loss.savefig(p_loss); output_files.append(p_loss)
 
-    # Lưu ASR
+    # ASR
     if has_asr:
         ax_asr.set_title(f"Attack Success Rate (ASR) - {current}")
         ax_asr.set_xlabel("Rounds"); ax_asr.set_ylabel("ASR")
         ax_asr.legend(); ax_asr.grid(True)
         p_asr = f"asr_{current}.png"; fig_asr.savefig(p_asr); output_files.append(p_asr)
 
-    # Lưu Bar Chart
+    # Convergence Bar
     if convergence_data:
         fig_bar, ax_bar = plt.subplots(figsize=(10, 6))
         labels, rounds = zip(*convergence_data)
@@ -241,7 +236,6 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             xytext=(0, 3), textcoords="offset points", ha='center')
         p_conv = f"conv_{current}.png"; fig_bar.savefig(p_conv); output_files.append(p_conv)
 
-    # Gửi tất cả
     for p in output_files:
         with open(p, 'rb') as f:
             await update.message.reply_photo(f)
@@ -269,15 +263,17 @@ if __name__ == '__main__':
     # 2. Khởi chạy Telegram Bot
     app_bot = ApplicationBuilder().token(TOKEN).build()
 
+    # Đăng ký Handlers
     app_bot.add_handler(CommandHandler("start", start))
+    app_bot.add_handler(CommandHandler("list", list_folders)) # Đã thêm lệnh list
     app_bot.add_handler(CommandHandler("create", create_folder))
     app_bot.add_handler(CommandHandler("set", set_folder))
     app_bot.add_handler(CommandHandler("export", export_charts))
-    app_bot.add_handler(MessageHandler(filters.Document.ALL, handle_document))
     app_bot.add_handler(CommandHandler("delete", delete_data))
-    app_bot.add_handler(MessageHandler(filters.Document.ALL, handle_document))
+    app_bot.add_handler(MessageHandler(filters.Document.ALL, handle_document)) # Chỉ đăng ký 1 lần
     print("Flask và Bot đang chạy đồng thời...")
     app_bot.run_polling()
+
 
 
 
