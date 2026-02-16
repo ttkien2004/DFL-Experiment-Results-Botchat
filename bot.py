@@ -113,13 +113,29 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # 1. Đọc và phân loại dữ liệu
     for file in files:
         try:
-            # Tự động nhận diện dấu phẩy hoặc Tab
-            df = pd.read_csv(os.path.join(folder_path, file), sep=None, engine='python')
-            # Lấy phần định danh cuối cùng (ví dụ: ubar, fedavg hoặc 30, 50, 70)
+            file_path = os.path.join(folder_path, file)
+            
+            # 1. Tự động nhận diện dấu phân tách (sep=None)
+            df = pd.read_csv(file_path, sep=None, engine='python')
+            
+            # 2. Xóa khoảng trắng thừa ở tên các cột (Tránh lỗi ' Round' != 'Round')
+            df.columns = df.columns.str.strip()
+            
+            # Kiểm tra xem cột 'Round' có tồn tại sau khi đã strip không
+            if 'Round' not in df.columns:
+                print(f"⚠️ File {file} không có cột 'Round'. Các cột hiện có: {df.columns.tolist()}")
+                continue
+    
+            # Lấy nhãn từ tên file
             raw_label = file.replace('.csv', '').split('-')[-1]
-            data_list.append({'label': raw_label, 'df': df})
+            
+            # 3. Vẽ biểu đồ (Lúc này df['Round'] đã an toàn)
+            ax_acc.plot(df['Round'], df['Accuracy'], marker='o', markersize=4, label=f"Model: {raw_label}")
+            
+            # ... các phần vẽ Loss, ASR tương tự ...
+    
         except Exception as e:
-            print(f"Lỗi đọc file {file}: {e}")
+            print(f"❌ Lỗi xử lý file {file}: {e}")
 
     # Sắp xếp nhãn để biểu đồ bar chart và đường vẽ được đẹp (ưu tiên số nếu là kịch bản node)
     data_list.sort(key=lambda x: int(x['label']) if x['label'].isdigit() else 0)
@@ -222,6 +238,7 @@ if __name__ == '__main__':
     app_bot.add_handler(MessageHandler(filters.Document.ALL, handle_document))
     print("Flask và Bot đang chạy đồng thời...")
     app_bot.run_polling()
+
 
 
 
