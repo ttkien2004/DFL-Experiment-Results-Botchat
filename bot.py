@@ -1,7 +1,8 @@
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+import os
 
-TOKEN = "YOUR_TOKEN"
+TOKEN = os.getenv("BOT_TOKEN")
 
 # Lệnh /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -24,3 +25,4 @@ app.add_handler(CommandHandler("square", square))
 
 print("Bot đang chạy...")
 app.run_polling()
+
