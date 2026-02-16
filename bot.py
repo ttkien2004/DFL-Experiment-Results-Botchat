@@ -83,6 +83,165 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"📥 {user_name} đã upload: `{file_name}` vào `{current}`")
 
 # Xuất biểu đồ tách riêng
+# async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
+#     current = shared_context["current_folder"]
+#     if not current:
+#         await update.message.reply_text("⚠️ Hãy dùng /set để chọn kịch bản trước.")
+#         return
+
+#     folder_path = os.path.join(BASE_DATA_DIR, current)
+#     if not os.path.exists(folder_path):
+#         await update.message.reply_text(f"❌ Thư mục `{current}` không tồn tại.")
+#         return
+
+#     files = [f for f in os.listdir(folder_path) if f.endswith('.csv')]
+#     if not files:
+#         await update.message.reply_text(f"📂 Kịch bản `{current}` đang trống. Hãy upload file CSV.")
+#         return
+
+#     await update.message.reply_text(f"📊 Đang xử lý {len(files)} file dữ liệu...")
+
+#     CONV_THRESHOLD = 0.75  
+#     convergence_data = []
+    
+#     # Khởi tạo Figure
+#     fig_acc, ax_acc = plt.subplots(figsize=(10, 6))
+#     fig_loss, ax_loss = plt.subplots(figsize=(10, 6))
+#     fig_asr, ax_asr = plt.subplots(figsize=(10, 6))
+    
+#     has_loss = False
+#     has_asr = False
+#     data_list = [] 
+
+#     # --- BƯỚC 1: Đọc file thông minh (Smart Read) ---
+#     for file in files:
+#         file_path = os.path.join(folder_path, file)
+#         try:
+#             # Logic đọc file bền bỉ: Thử Tự động -> Tab -> Phẩy
+#             try:
+#                 df = pd.read_csv(file_path, sep=None, engine='python')
+#             except:
+#                 df = pd.DataFrame()
+
+#             if len(df.columns) < 2:
+#                 try: df = pd.read_csv(file_path, sep='\t')
+#                 except: pass
+#             if len(df.columns) < 2:
+#                  try: df = pd.read_csv(file_path, sep=',')
+#                  except: pass
+
+#             # Chuẩn hóa tên cột
+#             df.columns = df.columns.str.strip()
+#             col_map = {c.lower(): c for c in df.columns}
+            
+#             if 'round' in col_map: df.rename(columns={col_map['round']: 'Round'}, inplace=True)
+#             if 'accuracy' in col_map: df.rename(columns={col_map['accuracy']: 'Accuracy'}, inplace=True)
+#             if 'loss' in col_map: df.rename(columns={col_map['loss']: 'Loss'}, inplace=True)
+#             if 'asr' in col_map: df.rename(columns={col_map['asr']: 'ASR'}, inplace=True)
+
+#             # Kiểm tra cột bắt buộc
+#             if 'Round' not in df.columns or 'Accuracy' not in df.columns:
+#                 print(f"⚠️ Bỏ qua {file}: Thiếu cột Round/Accuracy")
+#                 continue
+
+#             # Ép kiểu số & Xử lý NaN nhẹ nhàng hơn
+#             df['Round'] = pd.to_numeric(df['Round'], errors='coerce')
+#             df['Accuracy'] = pd.to_numeric(df['Accuracy'], errors='coerce')
+            
+#             # Chỉ drop nếu Round HOẶC Accuracy bị NaN (quan trọng!)
+#             df = df.dropna(subset=['Round', 'Accuracy'])
+            
+#             if df.empty:
+#                 print(f"⚠️ File {file} rỗng sau khi lọc dữ liệu.")
+#                 continue
+
+#             raw_label = file.replace('.csv', '').split('-')[-1]
+#             data_list.append({'label': raw_label, 'df': df})
+            
+#         except Exception as e:
+#             print(f"❌ Lỗi file {file}: {e}")
+
+#     if not data_list:
+#         await update.message.reply_text("❌ Không đọc được dữ liệu hợp lệ nào. Kiểm tra file CSV của bạn.")
+#         return
+
+#     # --- BƯỚC 2: Sắp xếp & Vẽ ---
+#     def sort_key(item):
+#         val = item['label']
+#         return int(val) if val.isdigit() else val
+
+#     data_list.sort(key=sort_key)
+
+#     for item in data_list:
+#         df = item['df']
+#         label = item['label']
+
+#         # 1. Acc
+#         ax_acc.plot(df['Round'], df['Accuracy'], marker='o', markersize=4, label=f"Model: {label}")
+
+#         # 2. Loss
+#         if 'Loss' in df.columns:
+#             loss_clean = pd.to_numeric(df['Loss'], errors='coerce').dropna()
+#             if not loss_clean.empty:
+#                 has_loss = True
+#                 valid_rounds = df.loc[loss_clean.index, 'Round']
+#                 ax_loss.plot(valid_rounds, loss_clean, linestyle='--', label=f"Loss: {label}")
+
+#         # 3. ASR
+#         if 'ASR' in df.columns:
+#             asr_clean = pd.to_numeric(df['ASR'], errors='coerce').fillna(0)
+#             if asr_clean.max() > 0: 
+#                 has_asr = True
+#                 ax_asr.plot(df['Round'], asr_clean, marker='s', linestyle='-.', label=f"ASR: {label}")
+
+#         # 4. Convergence
+#         reached = df[df['Accuracy'] >= CONV_THRESHOLD]
+#         if not reached.empty:
+#             convergence_data.append((str(label), reached['Round'].min()))
+#         else:
+#             convergence_data.append((str(label), df['Round'].max()))
+
+#     # --- BƯỚC 3: Lưu & Gửi ---
+#     output_files = []
+
+#     # Acc
+#     ax_acc.set_title(f"Accuracy Comparison - {current}")
+#     ax_acc.set_xlabel("Rounds"); ax_acc.set_ylabel("Accuracy")
+#     ax_acc.legend(); ax_acc.grid(True)
+#     p_acc = f"acc_{current}.png"; fig_acc.savefig(p_acc); output_files.append(p_acc)
+
+#     # Loss
+#     if has_loss:
+#         ax_loss.set_title(f"Model Stability (Loss) - {current}")
+#         ax_loss.set_xlabel("Rounds"); ax_loss.set_ylabel("Loss")
+#         ax_loss.legend(); ax_loss.grid(True)
+#         p_loss = f"loss_{current}.png"; fig_loss.savefig(p_loss); output_files.append(p_loss)
+
+#     # ASR
+#     if has_asr:
+#         ax_asr.set_title(f"Attack Success Rate (ASR) - {current}")
+#         ax_asr.set_xlabel("Rounds"); ax_asr.set_ylabel("ASR")
+#         ax_asr.legend(); ax_asr.grid(True)
+#         p_asr = f"asr_{current}.png"; fig_asr.savefig(p_asr); output_files.append(p_asr)
+
+#     # Convergence Bar
+#     if convergence_data:
+#         fig_bar, ax_bar = plt.subplots(figsize=(10, 6))
+#         labels, rounds = zip(*convergence_data)
+#         bars = ax_bar.bar(labels, rounds, color='teal')
+#         ax_bar.set_title(f"Convergence Speed (Rounds to {CONV_THRESHOLD*100}%)")
+#         ax_bar.set_ylabel("Rounds"); ax_bar.set_xlabel("Scenario")
+#         for bar in bars:
+#             ax_bar.annotate(f'{bar.get_height()}', xy=(bar.get_x() + bar.get_width()/2, bar.get_height()),
+#                             xytext=(0, 3), textcoords="offset points", ha='center')
+#         p_conv = f"conv_{current}.png"; fig_bar.savefig(p_conv); output_files.append(p_conv)
+
+#     for p in output_files:
+#         with open(p, 'rb') as f:
+#             await update.message.reply_photo(f)
+#         if os.path.exists(p): os.remove(p)
+
+#     plt.close('all')
 async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
     current = shared_context["current_folder"]
     if not current:
@@ -96,7 +255,7 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     files = [f for f in os.listdir(folder_path) if f.endswith('.csv')]
     if not files:
-        await update.message.reply_text(f"📂 Kịch bản `{current}` đang trống. Hãy upload file CSV.")
+        await update.message.reply_text(f"📂 Kịch bản `{current}` trống. Hãy upload file CSV.")
         return
 
     await update.message.reply_text(f"📊 Đang xử lý {len(files)} file dữ liệu...")
@@ -113,27 +272,36 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
     has_asr = False
     data_list = [] 
 
-    # --- BƯỚC 1: Đọc file thông minh (Smart Read) ---
+    # --- BƯỚC 1: Đọc file (Quay về logic đơn giản của hàm cũ) ---
     for file in files:
         file_path = os.path.join(folder_path, file)
         try:
-            # Logic đọc file bền bỉ: Thử Tự động -> Tab -> Phẩy
+            # 1. Ưu tiên cách đọc mặc định (giống hàm cũ - C engine)
+            # Cách này nhanh và ổn định nhất với file CSV chuẩn
             try:
-                df = pd.read_csv(file_path, sep=None, engine='python')
+                df = pd.read_csv(file_path, skipinitialspace=True)
             except:
                 df = pd.DataFrame()
 
+            # 2. Nếu cách 1 thất bại (đọc ra 1 cột do sai delimiter), thử dùng Tab
             if len(df.columns) < 2:
-                try: df = pd.read_csv(file_path, sep='\t')
-                except: pass
-            if len(df.columns) < 2:
-                 try: df = pd.read_csv(file_path, sep=',')
-                 except: pass
-
-            # Chuẩn hóa tên cột
-            df.columns = df.columns.str.strip()
-            col_map = {c.lower(): c for c in df.columns}
+                try:
+                    df = pd.read_csv(file_path, sep='\t')
+                except:
+                    pass
             
+            # 3. Fallback cuối cùng: Dùng engine python tự dò (chỉ khi 2 cách trên tạch)
+            if len(df.columns) < 2:
+                try:
+                    df = pd.read_csv(file_path, sep=None, engine='python')
+                except:
+                    pass
+
+            # Chuẩn hóa tên cột (Xóa khoảng trắng thừa)
+            df.columns = df.columns.str.strip()
+            
+            # Map tên cột (không phân biệt hoa thường)
+            col_map = {c.lower(): c for c in df.columns}
             if 'round' in col_map: df.rename(columns={col_map['round']: 'Round'}, inplace=True)
             if 'accuracy' in col_map: df.rename(columns={col_map['accuracy']: 'Accuracy'}, inplace=True)
             if 'loss' in col_map: df.rename(columns={col_map['loss']: 'Loss'}, inplace=True)
@@ -141,58 +309,61 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             # Kiểm tra cột bắt buộc
             if 'Round' not in df.columns or 'Accuracy' not in df.columns:
-                print(f"⚠️ Bỏ qua {file}: Thiếu cột Round/Accuracy")
+                print(f"⚠️ Bỏ qua {file}: Thiếu cột Round hoặc Accuracy. (Columns: {list(df.columns)})")
                 continue
 
-            # Ép kiểu số & Xử lý NaN nhẹ nhàng hơn
+            # Ép kiểu dữ liệu (nhẹ nhàng, không dropna quá gắt)
             df['Round'] = pd.to_numeric(df['Round'], errors='coerce')
             df['Accuracy'] = pd.to_numeric(df['Accuracy'], errors='coerce')
             
-            # Chỉ drop nếu Round HOẶC Accuracy bị NaN (quan trọng!)
+            # Chỉ loại bỏ những dòng mà Round HOẶC Accuracy bị lỗi (NaN)
+            # Giữ lại các dòng khác dù Loss có thể NaN
             df = df.dropna(subset=['Round', 'Accuracy'])
             
             if df.empty:
-                print(f"⚠️ File {file} rỗng sau khi lọc dữ liệu.")
+                print(f"⚠️ File {file} không có dữ liệu hợp lệ sau khi lọc.")
                 continue
 
+            # Lấy nhãn
             raw_label = file.replace('.csv', '').split('-')[-1]
             data_list.append({'label': raw_label, 'df': df})
             
         except Exception as e:
-            print(f"❌ Lỗi file {file}: {e}")
+            print(f"❌ Lỗi xử lý file {file}: {e}")
 
     if not data_list:
-        await update.message.reply_text("❌ Không đọc được dữ liệu hợp lệ nào. Kiểm tra file CSV của bạn.")
+        await update.message.reply_text("❌ Không đọc được dữ liệu hợp lệ nào. Vui lòng kiểm tra lại nội dung file CSV.")
         return
 
-    # --- BƯỚC 2: Sắp xếp & Vẽ ---
+    # --- BƯỚC 2: Sắp xếp (Sort) ---
     def sort_key(item):
         val = item['label']
         return int(val) if val.isdigit() else val
 
     data_list.sort(key=sort_key)
 
+    # --- BƯỚC 3: Vẽ biểu đồ ---
     for item in data_list:
         df = item['df']
         label = item['label']
 
-        # 1. Acc
+        # 1. Accuracy
         ax_acc.plot(df['Round'], df['Accuracy'], marker='o', markersize=4, label=f"Model: {label}")
 
         # 2. Loss
         if 'Loss' in df.columns:
-            loss_clean = pd.to_numeric(df['Loss'], errors='coerce').dropna()
-            if not loss_clean.empty:
+            loss_data = pd.to_numeric(df['Loss'], errors='coerce')
+            # Chỉ vẽ nếu có ít nhất 1 điểm dữ liệu loss hợp lệ
+            if not loss_data.dropna().empty:
                 has_loss = True
-                valid_rounds = df.loc[loss_clean.index, 'Round']
-                ax_loss.plot(valid_rounds, loss_clean, linestyle='--', label=f"Loss: {label}")
+                ax_loss.plot(df['Round'], loss_data, linestyle='--', label=f"Loss: {label}")
 
         # 3. ASR
         if 'ASR' in df.columns:
-            asr_clean = pd.to_numeric(df['ASR'], errors='coerce').fillna(0)
-            if asr_clean.max() > 0: 
+            asr_data = pd.to_numeric(df['ASR'], errors='coerce').fillna(0)
+            if asr_data.max() > 0: 
                 has_asr = True
-                ax_asr.plot(df['Round'], asr_clean, marker='s', linestyle='-.', label=f"ASR: {label}")
+                ax_asr.plot(df['Round'], asr_data, marker='s', linestyle='-.', label=f"ASR: {label}")
 
         # 4. Convergence
         reached = df[df['Accuracy'] >= CONV_THRESHOLD]
@@ -201,7 +372,7 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             convergence_data.append((str(label), df['Round'].max()))
 
-    # --- BƯỚC 3: Lưu & Gửi ---
+    # --- BƯỚC 4: Lưu & Gửi ---
     output_files = []
 
     # Acc
@@ -236,6 +407,7 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             xytext=(0, 3), textcoords="offset points", ha='center')
         p_conv = f"conv_{current}.png"; fig_bar.savefig(p_conv); output_files.append(p_conv)
 
+    # Gửi ảnh
     for p in output_files:
         with open(p, 'rb') as f:
             await update.message.reply_photo(f)
@@ -273,6 +445,7 @@ if __name__ == '__main__':
     app_bot.add_handler(MessageHandler(filters.Document.ALL, handle_document)) # Chỉ đăng ký 1 lần
     print("Flask và Bot đang chạy đồng thời...")
     app_bot.run_polling()
+
 
 
 
