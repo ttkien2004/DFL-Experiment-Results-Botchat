@@ -84,57 +84,114 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # Xuất biểu đồ tách riêng
 async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    if user_id not in user_context:
-        await update.message.reply_text("⚠️ Hãy dùng /set để chọn thư mục dữ liệu.")
+    current = shared_context["current_folder"]
+    if not current:
+        await update.message.reply_text("⚠️ Hãy dùng /set để chọn thư mục dữ liệu trước.")
         return
 
-    current_folder = user_context[user_id]
-    folder_path = os.path.join(BASE_DATA_DIR, current_folder)
+    folder_path = os.path.join(BASE_DATA_DIR, current)
     files = [f for f in os.listdir(folder_path) if f.endswith('.csv')]
     
     if not files:
-        await update.message.reply_text(f"Thư mục {current_folder} không có dữ liệu CSV.")
+        await update.message.reply_text(f"Thư mục `{current}` không có dữ liệu.")
         return
 
-    # Tạo figure riêng cho Accuracy và ASR
+    await update.message.reply_text("📊 Đang phân tích dữ liệu kịch bản hỗn hợp...")
+
+    CONV_THRESHOLD = 0.75  # Ngưỡng tính tốc độ hội tụ
+    convergence_data = []
+    
+    # Khởi tạo 4 khung hình (Figure) cho tất cả các kịch bản có thể xảy ra
     fig_acc, ax_acc = plt.subplots(figsize=(10, 6))
+    fig_loss, ax_loss = plt.subplots(figsize=(10, 6))
     fig_asr, ax_asr = plt.subplots(figsize=(10, 6))
+    
+    has_loss = False
+    has_asr = False
+    data_list = []
 
+    # 1. Đọc và phân loại dữ liệu
     for file in files:
-        df = pd.read_csv(os.path.join(folder_path, file))
-        # Lấy tên thuật toán từ phần cuối tên file để làm nhãn
-        label_name = file.replace('.csv', '').split('-')[-1]
+        try:
+            # Tự động nhận diện dấu phẩy hoặc Tab
+            df = pd.read_csv(os.path.join(folder_path, file), sep=None, engine='python')
+            # Lấy phần định danh cuối cùng (ví dụ: ubar, fedavg hoặc 30, 50, 70)
+            raw_label = file.replace('.csv', '').split('-')[-1]
+            data_list.append({'label': raw_label, 'df': df})
+        except Exception as e:
+            print(f"Lỗi đọc file {file}: {e}")
 
-        ax_acc.plot(df['Round'], df['Accuracy'], marker='o', label=f"Acc: {label_name}")
-        if 'ASR' in df.columns:
-            ax_asr.plot(df['Round'], df['ASR'], marker='s', linestyle='--', label=f"ASR: {label_name}")
+    # Sắp xếp nhãn để biểu đồ bar chart và đường vẽ được đẹp (ưu tiên số nếu là kịch bản node)
+    data_list.sort(key=lambda x: int(x['label']) if x['label'].isdigit() else 0)
 
-    # Cấu hình biểu đồ Accuracy
-    ax_acc.set_title(f"Accuracy Comparison - {current_folder}")
-    ax_acc.set_xlabel("Rounds")
-    ax_acc.set_ylabel("Accuracy")
-    ax_acc.legend()
-    ax_acc.grid(True)
-    acc_path = f"acc_{current_folder}.png"
-    fig_acc.savefig(acc_path)
+    # 2. Vẽ biểu đồ dựa trên các cột dữ liệu hiện có
+    for item in data_list:
+        df = item['df']
+        label = item['label']
 
-    # Cấu hình biểu đồ ASR
-    ax_asr.set_title(f"Attack Success Rate - {current_folder}")
-    ax_asr.set_xlabel("Rounds")
-    ax_asr.set_ylabel("ASR")
-    ax_asr.legend()
-    ax_asr.grid(True)
-    asr_path = f"asr_{current_folder}.png"
-    fig_asr.savefig(asr_path)
+        # Luôn vẽ Accuracy
+        ax_acc.plot(df['Round'], df['Accuracy'], marker='o', markersize=4, label=f"Model: {label}")
 
-    # Gửi 2 ảnh riêng biệt
-    with open(acc_path, 'rb') as f1, open(asr_path, 'rb') as f2:
-        await update.message.reply_photo(f1, caption=f"Biểu đồ Accuracy kịch bản: {current_folder}")
-        await update.message.reply_photo(f2, caption=f"Biểu đồ ASR kịch bản: {current_folder}")
+        # Vẽ Loss nếu có (Kịch bản Stability/Normal)
+        if 'Loss' in df.columns and not df['Loss'].dropna().empty:
+            has_loss = True
+            ax_loss.plot(df['Round'], df['Loss'], label=f"Loss: {label}")
 
-    plt.close(fig_acc)
-    plt.close(fig_asr)
+        # Vẽ ASR nếu có (Kịch bản Tấn công)
+        if 'ASR' in df.columns and not df['ASR'].dropna().empty:
+            if df['ASR'].sum() > 0: # Chỉ vẽ nếu có dữ liệu tấn công thực tế
+                has_asr = True
+                ax_asr.plot(df['Round'], df['ASR'], marker='s', linestyle='--', label=f"ASR: {label}")
+
+        # Tính tốc độ hội tụ cho Bar Chart
+        reached = df[df['Accuracy'] >= CONV_THRESHOLD]
+        if not reached.empty:
+            convergence_data.append((label, reached['Round'].min()))
+        else:
+            convergence_data.append((label, df['Round'].max()))
+
+    # 3. Xử lý lưu và gửi ảnh
+    output_files = []
+
+    # Lưu Accuracy (Bắt buộc)
+    ax_acc.set_title(f"Accuracy Comparison - {current}")
+    ax_acc.set_xlabel("Rounds"); ax_acc.set_ylabel("Accuracy")
+    ax_acc.legend(); ax_acc.grid(True)
+    p_acc = f"acc_{current}.png"; fig_acc.savefig(p_acc); output_files.append(p_acc)
+
+    # Lưu Loss (Nếu có)
+    if has_loss:
+        ax_loss.set_title(f"Model Stability (Loss) - {current}")
+        ax_loss.set_xlabel("Rounds"); ax_loss.set_ylabel("Loss")
+        ax_loss.legend(); ax_loss.grid(True)
+        p_loss = f"loss_{current}.png"; fig_loss.savefig(p_loss); output_files.append(p_loss)
+
+    # Lưu ASR (Nếu có - Kịch bản tấn công)
+    if has_asr:
+        ax_asr.set_title(f"Attack Success Rate (ASR) - {current}")
+        ax_asr.set_xlabel("Rounds"); ax_asr.set_ylabel("ASR")
+        ax_asr.legend(); ax_asr.grid(True)
+        p_asr = f"asr_{current}.png"; fig_asr.savefig(p_asr); output_files.append(p_asr)
+
+    # Lưu Convergence Speed Bar Chart (Bắt buộc cho kịch bản nhiều Nodes/Rounds)
+    if convergence_data:
+        fig_bar, ax_bar = plt.subplots(figsize=(10, 6))
+        labels, rounds = zip(*convergence_data)
+        bars = ax_bar.bar(labels, rounds, color='teal')
+        ax_bar.set_title(f"Convergence Speed (Rounds to {CONV_THRESHOLD*100}%)")
+        ax_bar.set_ylabel("Rounds"); ax_bar.set_xlabel("Scenario")
+        for bar in bars:
+            ax_bar.annotate(f'{bar.get_height()}', xy=(bar.get_x() + bar.get_width()/2, bar.get_height()),
+                            xytext=(0, 3), textcoords="offset points", ha='center')
+        p_conv = f"conv_{current}.png"; fig_bar.savefig(p_conv); output_files.append(p_conv)
+
+    # 4. Gửi ảnh và dọn dẹp
+    for p in output_files:
+        with open(p, 'rb') as f:
+            await update.message.reply_photo(f)
+        if os.path.exists(p): os.remove(p)
+
+    plt.close('all')
 
 # Thêm Handler delete như yêu cầu cũ nhưng áp dụng cho shared_context
 async def delete_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -165,6 +222,7 @@ if __name__ == '__main__':
     app_bot.add_handler(MessageHandler(filters.Document.ALL, handle_document))
     print("Flask và Bot đang chạy đồng thời...")
     app_bot.run_polling()
+
 
 
 
