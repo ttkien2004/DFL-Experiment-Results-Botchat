@@ -1,28 +1,30 @@
+import os
+import threading
+from flask import Flask
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
-import os
 
 TOKEN = os.getenv("BOT_TOKEN")
+PORT = int(os.environ.get("PORT", 10000))
 
-# Lệnh /start
+# --------- Flask app để mở port ---------
+flask_app = Flask(__name__)
+
+@flask_app.route("/")
+def home():
+    return "Bot is running!"
+
+def run_flask():
+    flask_app.run(host="0.0.0.0", port=PORT)
+
+# --------- Telegram bot ---------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Xin chào! Gõ /square <số> để tính bình phương.")
+    await update.message.reply_text("Bot đang chạy free trên Render 🚀")
 
-# Lệnh /square
-async def square(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    try:
-        number = int(context.args[0])
-        result = number ** 2
-        await update.message.reply_text(f"Bình phương của {number} là {result}")
-    except:
-        await update.message.reply_text("Vui lòng nhập số hợp lệ. Ví dụ: /square 5")
-
-# Main
 app = ApplicationBuilder().token(TOKEN).build()
-
 app.add_handler(CommandHandler("start", start))
-app.add_handler(CommandHandler("square", square))
 
-print("Bot đang chạy...")
-app.run_polling()
-
+# --------- Run cả 2 ---------
+if __name__ == "__main__":
+    threading.Thread(target=run_flask).start()
+    app.run_polling()
