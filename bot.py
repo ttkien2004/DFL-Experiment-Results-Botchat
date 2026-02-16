@@ -86,110 +86,114 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
     current = shared_context["current_folder"]
     if not current:
-        await update.message.reply_text("⚠️ Hãy dùng /set để chọn thư mục dữ liệu trước.")
+        await update.message.reply_text("⚠️ Hãy dùng /set để chọn thư mục.")
         return
 
     folder_path = os.path.join(BASE_DATA_DIR, current)
     files = [f for f in os.listdir(folder_path) if f.endswith('.csv')]
     
     if not files:
-        await update.message.reply_text(f"Thư mục `{current}` không có dữ liệu.")
+        await update.message.reply_text("Thư mục không có dữ liệu CSV.")
         return
 
-    await update.message.reply_text("📊 Đang phân tích dữ liệu kịch bản hỗn hợp...")
+    await update.message.reply_text(f"📊 Đang xử lý {len(files)} file dữ liệu...")
 
-    CONV_THRESHOLD = 0.75  # Ngưỡng tính tốc độ hội tụ
+    CONV_THRESHOLD = 0.75  
     convergence_data = []
     
-    # Khởi tạo 4 khung hình (Figure) cho tất cả các kịch bản có thể xảy ra
+    # Khởi tạo Figure
     fig_acc, ax_acc = plt.subplots(figsize=(10, 6))
     fig_loss, ax_loss = plt.subplots(figsize=(10, 6))
     fig_asr, ax_asr = plt.subplots(figsize=(10, 6))
     
     has_loss = False
     has_asr = False
-    data_list = []
+    data_list = [] # List chứa các dictionary {label, df}
 
-    # 1. Đọc và phân loại dữ liệu
+    # --- BƯỚC 1: Đọc tất cả file và lưu vào Memory ---
     for file in files:
         try:
             file_path = os.path.join(folder_path, file)
-            
-            # 1. Tự động nhận diện dấu phân tách (sep=None)
+            # Tự động nhận diện delimiter
             df = pd.read_csv(file_path, sep=None, engine='python')
             
-            # 2. Xóa khoảng trắng thừa ở tên các cột (Tránh lỗi ' Round' != 'Round')
+            # Làm sạch tên cột
             df.columns = df.columns.str.strip()
             
-            # Kiểm tra xem cột 'Round' có tồn tại sau khi đã strip không
-            if 'Round' not in df.columns:
-                print(f"⚠️ File {file} không có cột 'Round'. Các cột hiện có: {df.columns.tolist()}")
+            if 'Round' not in df.columns or 'Accuracy' not in df.columns:
+                print(f"⚠️ Bỏ qua {file}: Thiếu cột Round/Accuracy")
                 continue
-    
-            # Lấy nhãn từ tên file
+
+            # Lấy nhãn
             raw_label = file.replace('.csv', '').split('-')[-1]
+            data_list.append({'label': raw_label, 'df': df})
             
-            # 3. Vẽ biểu đồ (Lúc này df['Round'] đã an toàn)
-            ax_acc.plot(df['Round'], df['Accuracy'], marker='o', markersize=4, label=f"Model: {raw_label}")
-            
-            # ... các phần vẽ Loss, ASR tương tự ...
-    
         except Exception as e:
-            print(f"❌ Lỗi xử lý file {file}: {e}")
+            print(f"❌ Lỗi file {file}: {e}")
 
-    # Sắp xếp nhãn để biểu đồ bar chart và đường vẽ được đẹp (ưu tiên số nếu là kịch bản node)
-    data_list.sort(key=lambda x: int(x['label']) if x['label'].isdigit() else 0)
+    if not data_list:
+        await update.message.reply_text("❌ Không đọc được dữ liệu hợp lệ nào từ các file.")
+        return
 
-    # 2. Vẽ biểu đồ dựa trên các cột dữ liệu hiện có
+    # --- BƯỚC 2: Sắp xếp (Sort) để màu sắc và thứ tự vẽ nhất quán ---
+    # Sắp xếp theo số nếu nhãn là số (vd: 10, 20, 30...), ngược lại theo alphabet
+    def sort_key(item):
+        val = item['label']
+        return int(val) if val.isdigit() else val
+
+    data_list.sort(key=sort_key)
+
+    # --- BƯỚC 3: Vẽ biểu đồ từ danh sách đã sắp xếp ---
     for item in data_list:
         df = item['df']
         label = item['label']
 
-        # Luôn vẽ Accuracy
+        # 1. Vẽ Accuracy
         ax_acc.plot(df['Round'], df['Accuracy'], marker='o', markersize=4, label=f"Model: {label}")
 
-        # Vẽ Loss nếu có (Kịch bản Stability/Normal)
-        if 'Loss' in df.columns and not df['Loss'].dropna().empty:
+        # 2. Vẽ Loss
+        if 'Loss' in df.columns and not df['Loss'].isna().all():
             has_loss = True
-            ax_loss.plot(df['Round'], df['Loss'], label=f"Loss: {label}")
+            ax_loss.plot(df['Round'], df['Loss'], linestyle='--', label=f"Loss: {label}")
 
-        # Vẽ ASR nếu có (Kịch bản Tấn công)
-        if 'ASR' in df.columns and not df['ASR'].dropna().empty:
-            if df['ASR'].sum() > 0: # Chỉ vẽ nếu có dữ liệu tấn công thực tế
+        # 3. Vẽ ASR (Attack)
+        if 'ASR' in df.columns and not df['ASR'].isna().all():
+            # Kiểm tra nếu ASR có giá trị thực sự (không phải toàn 0)
+            if df['ASR'].max() > 0: 
                 has_asr = True
-                ax_asr.plot(df['Round'], df['ASR'], marker='s', linestyle='--', label=f"ASR: {label}")
+                ax_asr.plot(df['Round'], df['ASR'], marker='s', linestyle='-.', label=f"ASR: {label}")
 
-        # Tính tốc độ hội tụ cho Bar Chart
+        # 4. Tính Convergence
         reached = df[df['Accuracy'] >= CONV_THRESHOLD]
         if not reached.empty:
             convergence_data.append((label, reached['Round'].min()))
         else:
             convergence_data.append((label, df['Round'].max()))
 
-    # 3. Xử lý lưu và gửi ảnh
+    # --- BƯỚC 4: Xuất ảnh và Gửi ---
     output_files = []
 
-    # Lưu Accuracy (Bắt buộc)
+    # Lưu Acc
     ax_acc.set_title(f"Accuracy Comparison - {current}")
     ax_acc.set_xlabel("Rounds"); ax_acc.set_ylabel("Accuracy")
     ax_acc.legend(); ax_acc.grid(True)
     p_acc = f"acc_{current}.png"; fig_acc.savefig(p_acc); output_files.append(p_acc)
 
-    # Lưu Loss (Nếu có)
+    # Lưu Loss
     if has_loss:
         ax_loss.set_title(f"Model Stability (Loss) - {current}")
         ax_loss.set_xlabel("Rounds"); ax_loss.set_ylabel("Loss")
         ax_loss.legend(); ax_loss.grid(True)
         p_loss = f"loss_{current}.png"; fig_loss.savefig(p_loss); output_files.append(p_loss)
 
-    # Lưu ASR (Nếu có - Kịch bản tấn công)
+    # Lưu ASR
     if has_asr:
         ax_asr.set_title(f"Attack Success Rate (ASR) - {current}")
         ax_asr.set_xlabel("Rounds"); ax_asr.set_ylabel("ASR")
         ax_asr.legend(); ax_asr.grid(True)
         p_asr = f"asr_{current}.png"; fig_asr.savefig(p_asr); output_files.append(p_asr)
 
-    # Lưu Convergence Speed Bar Chart (Bắt buộc cho kịch bản nhiều Nodes/Rounds)
+    # Lưu Bar Chart
     if convergence_data:
         fig_bar, ax_bar = plt.subplots(figsize=(10, 6))
         labels, rounds = zip(*convergence_data)
@@ -201,7 +205,7 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             xytext=(0, 3), textcoords="offset points", ha='center')
         p_conv = f"conv_{current}.png"; fig_bar.savefig(p_conv); output_files.append(p_conv)
 
-    # 4. Gửi ảnh và dọn dẹp
+    # Gửi tất cả
     for p in output_files:
         with open(p, 'rb') as f:
             await update.message.reply_photo(f)
@@ -238,6 +242,7 @@ if __name__ == '__main__':
     app_bot.add_handler(MessageHandler(filters.Document.ALL, handle_document))
     print("Flask và Bot đang chạy đồng thời...")
     app_bot.run_polling()
+
 
 
 
