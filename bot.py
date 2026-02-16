@@ -5,6 +5,7 @@ import threading
 from flask import Flask
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
+import shutil
 
 # --- Cấu hình Telegram Bot ---
 TOKEN = os.getenv("BOT_TOKEN")
@@ -164,5 +165,6 @@ if __name__ == '__main__':
     app_bot.add_handler(MessageHandler(filters.Document.ALL, handle_document))
     print("Flask và Bot đang chạy đồng thời...")
     app_bot.run_polling()
+
 
 
