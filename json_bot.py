@@ -102,7 +102,15 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
     CONV_THRESHOLD = 0.75  
     convergence_data = []
     summary_records = []
-    target_rounds = [20, 40, 60, 80, 100] # Các round cần trích xuất báo cáo
+    
+    # MAPPING ROUND: Lấy round thực tế (index 0-99) nhưng hiển thị theo (20-100)
+    target_rounds_mapping = {
+        19: 20, 
+        39: 40, 
+        59: 60, 
+        79: 80, 
+        99: 100
+    }
     
     fig_acc, ax_acc = plt.subplots(figsize=(10, 6))
     fig_loss, ax_loss = plt.subplots(figsize=(10, 6))
@@ -118,10 +126,8 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
             with open(file_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
             
-            # Lấy tên thuật toán (Krum, Median, Trimmed Mean...)
             algo_name = data.get('algo_name', [file.replace('.json', '')])[0]
             
-            # Khởi tạo DataFrame từ JSON
             df = pd.DataFrame({
                 'Round': data.get('rounds', []),
                 'Accuracy': data.get('clean_acc', data.get('avg_acc', [])),
@@ -134,13 +140,14 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             data_list.append({'label': algo_name, 'df': df})
             
-            # --- TRÍCH XUẤT CHỈ SỐ SUMMARY ---
-            for r in target_rounds:
-                row = df[df['Round'] == r]
+            # --- TRÍCH XUẤT CHỈ SỐ THEO MAPPING (0-INDEXED) ---
+            for actual_r, display_r in target_rounds_mapping.items():
+                row = df[df['Round'] == actual_r]
                 if not row.empty:
                     summary_records.append({
                         'Algorithm': algo_name,
-                        'Round': r,
+                        'Round (Display)': display_r,
+                        'Round (Actual index)': actual_r,
                         'Accuracy': round(row['Accuracy'].values[0], 4),
                         'ASR': round(row['ASR'].values[0], 4) if not row['ASR'].isna().all() else None,
                         'Loss': round(row['Loss'].values[0], 4) if not row['Loss'].isna().all() else None
@@ -153,7 +160,6 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ Không trích xuất được dữ liệu.")
         return
 
-    # Sắp xếp theo tên thuật toán
     data_list.sort(key=lambda x: str(x['label']))
 
     # --- VẼ BIỂU ĐỒ ---
@@ -205,8 +211,7 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # --- TẠO VÀ GỬI FILE SUMMARY CSV ---
     if summary_records:
         summary_df = pd.DataFrame(summary_records)
-        # Sort cho đẹp mắt theo Thuật toán và Round
-        summary_df = summary_df.sort_values(by=['Algorithm', 'Round'])
+        summary_df = summary_df.sort_values(by=['Algorithm', 'Round (Actual index)'])
         
         summary_csv = f"Summary_{current}.csv"
         summary_df.to_csv(summary_csv, index=False)
@@ -215,7 +220,7 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_document(
                 document=f, 
                 filename=f"Metrics_20_40_60_80_100_{current}.csv", 
-                caption="✅ File tổng hợp các mốc Round quan trọng!"
+                caption="✅ File tổng hợp chỉ số với mapping Index thực tế (19, 39, 59...) ứng với mốc Round (20, 40, 60...)"
             )
         os.remove(summary_csv)
 
