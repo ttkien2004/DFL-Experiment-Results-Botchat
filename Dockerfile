@@ -7,4 +7,4 @@ COPY . .
 RUN pip install --upgrade pip
 RUN pip install -r requirements.txt
 
-CMD ["python", "bot.py"]
+CMD ["python", "json_bot.py"]
