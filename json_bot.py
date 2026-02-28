@@ -97,13 +97,9 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"📂 `{current}` trống. Hãy upload file JSON.")
         return
 
-    await update.message.reply_text(f"📊 Đang đọc {len(files)} file JSON...")
+    await update.message.reply_text(f"📊 Đang quét động (Dynamic Scan) {len(files)} file JSON...")
 
-    CONV_THRESHOLD = 0.75  
-    convergence_data = []
-    summary_records = []
-    
-    # MAPPING ROUND: Lấy round thực tế (index 0-99) nhưng hiển thị theo (20-100)
+    # Mapping round: Lấy mốc index thực tế
     target_rounds_mapping = {
         19: 20, 
         39: 40, 
@@ -112,115 +108,147 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
         99: 100
     }
     
-    fig_acc, ax_acc = plt.subplots(figsize=(10, 6))
-    fig_loss, ax_loss = plt.subplots(figsize=(10, 6))
-    fig_asr, ax_asr = plt.subplots(figsize=(10, 6))
-    
-    has_loss, has_asr = False, False
     data_list = [] 
+    summary_records = []
+    global_metrics = set() # Lưu trữ tất cả các metrics phát hiện được
 
-    # --- ĐỌC FILE JSON ---
+    # --- BƯỚC 1: ĐỌC VÀ PHÁT HIỆN METRICS ĐỘNG ---
     for file in files:
         file_path = os.path.join(folder_path, file)
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
             
+            # Lấy tên thuật toán (Krum, Median, Trimmed Mean...)
             algo_name = data.get('algo_name', [file.replace('.json', '')])[0]
+            rounds = data.get('rounds', [])
             
-            df = pd.DataFrame({
-                'Round': data.get('rounds', []),
-                'Accuracy': data.get('clean_acc', data.get('avg_acc', [])),
-                'ASR': data.get('asr', []),
-                'Loss': data.get('consensus_error', [])
-            })
+            if not rounds:
+                continue
+                
+            # Tạo Dictionary để dựng DataFrame
+            df_dict = {'Round': rounds}
+            file_metrics = []
             
-            df = df.dropna(subset=['Round', 'Accuracy'])
-            if df.empty: continue
+            # Quét các keys để tìm metrics hợp lệ
+            for key, val in data.items():
+                if key == 'rounds': continue
+                # Tiêu chí 1 metric hợp lệ: là list, cùng độ dài với rounds, phần tử là số
+                if isinstance(val, list) and len(val) == len(rounds) and len(val) > 0:
+                    if isinstance(val[0], (int, float)):
+                        df_dict[key] = val
+                        global_metrics.add(key)
+                        file_metrics.append(key)
             
+            df = pd.DataFrame(df_dict)
             data_list.append({'label': algo_name, 'df': df})
             
-            # --- TRÍCH XUẤT CHỈ SỐ THEO MAPPING (0-INDEXED) ---
+            # --- TRÍCH XUẤT CHỈ SỐ THEO MAPPING CHO FILE CSV ---
             for actual_r, display_r in target_rounds_mapping.items():
                 row = df[df['Round'] == actual_r]
                 if not row.empty:
-                    summary_records.append({
+                    record = {
                         'Algorithm': algo_name,
                         'Round (Display)': display_r,
-                        'Round (Actual index)': actual_r,
-                        'Accuracy': round(row['Accuracy'].values[0], 4),
-                        'ASR': round(row['ASR'].values[0], 4) if not row['ASR'].isna().all() else None,
-                        'Loss': round(row['Loss'].values[0], 4) if not row['Loss'].isna().all() else None
-                    })
+                        'Round (Actual index)': actual_r
+                    }
+                    # Đưa toàn bộ metrics tìm được vào record
+                    for metric in file_metrics:
+                        val = row[metric].values[0]
+                        record[metric] = round(val, 4) if not pd.isna(val) else None
+                    
+                    summary_records.append(record)
                     
         except Exception as e:
             print(f"Error {file}: {e}")
 
     if not data_list:
-        await update.message.reply_text("❌ Không trích xuất được dữ liệu.")
+        await update.message.reply_text("❌ Không trích xuất được dữ liệu hợp lệ.")
         return
 
     data_list.sort(key=lambda x: str(x['label']))
-
-    # --- VẼ BIỂU ĐỒ ---
-    for item in data_list:
-        df, label = item['df'], item['label']
-
-        ax_acc.plot(df['Round'], df['Accuracy'], marker='o', markersize=4, label=f"Model: {label}")
-
-        if 'Loss' in df.columns and not df['Loss'].isna().all():
-            has_loss = True
-            ax_loss.plot(df['Round'], df['Loss'], linestyle='--', label=f"Loss: {label}")
-
-        if 'ASR' in df.columns and not df['ASR'].isna().all():
-            has_asr = True
-            ax_asr.plot(df['Round'], df['ASR'], marker='s', linestyle='-.', label=f"ASR: {label}")
-
-        reached = df[df['Accuracy'] >= CONV_THRESHOLD]
-        val = reached['Round'].min() if not reached.empty else df['Round'].max()
-        convergence_data.append((str(label), val))
-
-    # --- LƯU ẢNH ---
     output_files = []
+
+    # --- BƯỚC 2: VẼ ĐỘNG (DYNAMIC PLOTTING) TỪNG METRIC ---
+    for metric in global_metrics:
+        fig, ax = plt.subplots(figsize=(10, 6))
+        has_valid_data = False
+        
+        for item in data_list:
+            df = item['df']
+            label = item['label']
+            
+            if metric in df.columns:
+                metric_data = df[metric]
+                # Kiểm tra nếu metric không rỗng toàn bộ
+                if not metric_data.isna().all():
+                    has_valid_data = True
+                    # Tùy biến style đường kẻ dựa trên tên metric (Ví dụ: loss thì kẻ đứt)
+                    linestyle = '--' if 'error' in metric.lower() or 'loss' in metric.lower() else '-'
+                    marker = 's' if 'asr' in metric.lower() else 'o'
+                    
+                    ax.plot(df['Round'], metric_data, marker=marker, markersize=4, linestyle=linestyle, label=f"{label}")
+
+        if has_valid_data:
+            metric_display_name = metric.replace('_', ' ').title()
+            ax.set_title(f"{metric_display_name} Comparison - {current}")
+            ax.set_xlabel("Rounds")
+            ax.set_ylabel(metric_display_name)
+            ax.legend()
+            ax.grid(True)
+            
+            p_metric = f"metric_{metric}_{current}.png"
+            fig.savefig(p_metric)
+            output_files.append(p_metric)
+            
+        plt.close(fig)
+
+    # --- BƯỚC 3: CONVERGENCE BAR CHART ĐỘNG ---
+    # Tự động tìm metric đại diện cho Accuracy (ví dụ: clean_acc, avg_acc)
+    acc_metric = next((m for m in global_metrics if 'acc' in m.lower()), None)
     
-    ax_acc.set_title(f"Accuracy Comparison (JSON) - {current}"); ax_acc.legend(); ax_acc.grid(True)
-    p_acc = f"acc_{current}.png"; fig_acc.savefig(p_acc); output_files.append(p_acc)
+    if acc_metric:
+        CONV_THRESHOLD = 0.75  
+        convergence_data = []
+        for item in data_list:
+            df = item['df']
+            if acc_metric in df.columns:
+                reached = df[df[acc_metric] >= CONV_THRESHOLD]
+                val = reached['Round'].min() if not reached.empty else df['Round'].max()
+                convergence_data.append((str(item['label']), val))
 
-    if has_loss:
-        ax_loss.set_title(f"Consensus Error / Loss - {current}"); ax_loss.legend(); ax_loss.grid(True)
-        p_loss = f"loss_{current}.png"; fig_loss.savefig(p_loss); output_files.append(p_loss)
+        if convergence_data:
+            fig_bar, ax_bar = plt.subplots(figsize=(10, 6))
+            lbls, rnds = zip(*convergence_data)
+            bars = ax_bar.bar(lbls, rnds, color='darkorange')
+            ax_bar.set_title(f"Convergence Speed (To {CONV_THRESHOLD*100}% on {acc_metric})")
+            ax_bar.bar_label(bars)
+            p_conv = f"conv_{current}.png"; fig_bar.savefig(p_conv); output_files.append(p_conv)
+            plt.close(fig_bar)
 
-    if has_asr:
-        ax_asr.set_title(f"Attack Success Rate (ASR) - {current}"); ax_asr.legend(); ax_asr.grid(True)
-        p_asr = f"asr_{current}.png"; fig_asr.savefig(p_asr); output_files.append(p_asr)
-
-    if convergence_data:
-        fig_bar, ax_bar = plt.subplots(figsize=(10, 6))
-        lbls, rnds = zip(*convergence_data)
-        bars = ax_bar.bar(lbls, rnds, color='darkorange')
-        ax_bar.set_title(f"Convergence Speed (To {CONV_THRESHOLD*100}%)")
-        ax_bar.bar_label(bars)
-        p_conv = f"conv_{current}.png"; fig_bar.savefig(p_conv); output_files.append(p_conv)
-
-    # Gửi ảnh
+    # --- BƯỚC 4: GỬI TẤT CẢ ẢNH ---
     for p in output_files:
         with open(p, 'rb') as f: await update.message.reply_photo(f)
         os.remove(p)
-    plt.close('all')
 
-    # --- TẠO VÀ GỬI FILE SUMMARY CSV ---
+    # --- BƯỚC 5: TẠO VÀ GỬI FILE SUMMARY CSV ĐỘNG ---
     if summary_records:
         summary_df = pd.DataFrame(summary_records)
         summary_df = summary_df.sort_values(by=['Algorithm', 'Round (Actual index)'])
         
-        summary_csv = f"Summary_{current}.csv"
+        # Sắp xếp lại thứ tự cột cho đẹp: Algorithm, Round, rồi đến các metrics
+        cols = ['Algorithm', 'Round (Display)', 'Round (Actual index)']
+        metrics_cols = [c for c in summary_df.columns if c not in cols]
+        summary_df = summary_df[cols + sorted(metrics_cols)]
+        
+        summary_csv = f"Dynamic_Summary_{current}.csv"
         summary_df.to_csv(summary_csv, index=False)
         
         with open(summary_csv, 'rb') as f:
             await update.message.reply_document(
                 document=f, 
-                filename=f"Metrics_20_40_60_80_100_{current}.csv", 
-                caption="✅ File tổng hợp chỉ số với mapping Index thực tế (19, 39, 59...) ứng với mốc Round (20, 40, 60...)"
+                filename=f"Metrics_Summary_Rounds_{current}.csv", 
+                caption=f"✅ File tổng hợp {len(metrics_cols)} chỉ số động!"
             )
         os.remove(summary_csv)
 
