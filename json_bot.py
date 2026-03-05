@@ -203,6 +203,9 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
         plt.close(fig)
 
+    # --- TÌM CHỈ SỐ ACCURACY VÀ TRAFFIC ---
+    acc_metric = next((m for m in global_metrics if 'acc' in m.lower()), None)
+    traffic_metric = next((m for m in global_metrics if 'traffic' in m.lower() or 'comm' in m.lower()), None)
     # --- BƯỚC 3: CONVERGENCE BAR CHART ĐỘNG ---
     # Tự động tìm metric đại diện cho Accuracy (ví dụ: clean_acc, avg_acc)
     acc_metric = next((m for m in global_metrics if 'acc' in m.lower()), None)
@@ -225,6 +228,60 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ax_bar.bar_label(bars)
             p_conv = f"conv_{current}.png"; fig_bar.savefig(p_conv); output_files.append(p_conv)
             plt.close(fig_bar)
+    # --- BƯỚC 4: BIỂU ĐỒ BĂNG THÔNG (CUMULATIVE & SCATTER) ---
+    
+    if traffic_metric and acc_metric:
+        fig_cum, ax_cum = plt.subplots(figsize=(10, 6))
+        fig_scat, ax_scat = plt.subplots(figsize=(10, 6))
+        
+        has_traffic_data = False
+        scatter_points = []
+
+        for item in data_list:
+            df = item['df']
+            label = item['label']
+            
+            if traffic_metric in df.columns and acc_metric in df.columns:
+                has_traffic_data = True
+                # Tính Cumulative Traffic (cộng dồn theo từng vòng)
+                cum_traffic = df[traffic_metric].cumsum()
+                
+                # 4.1: Line Chart (Cumulative Traffic)
+                ax_cum.plot(df['Round'], cum_traffic, marker='', linestyle='-', linewidth=2, label=f"{label}")
+                
+                # Trích xuất điểm cuối cùng cho Scatter Plot
+                total_traffic = cum_traffic.iloc[-1]
+                final_acc = df[acc_metric].iloc[-1]
+                scatter_points.append((total_traffic, final_acc, label))
+
+        if has_traffic_data:
+            # Lưu Line Chart Cumulative
+            traffic_display = traffic_metric.replace('_', ' ').title()
+            ax_cum.set_title(f"Cumulative {traffic_display} over Rounds - {current}")
+            ax_cum.set_xlabel("Rounds")
+            ax_cum.set_ylabel(f"Cumulative {traffic_display}")
+            ax_cum.legend()
+            ax_cum.grid(True)
+            p_cum = f"cumulative_{traffic_metric}_{current}.png"
+            fig_cum.savefig(p_cum)
+            output_files.append(p_cum)
+            
+            # Lưu Scatter Plot Efficiency
+            for t_traf, f_acc, lbl in scatter_points:
+                ax_scat.scatter(t_traf, f_acc, s=150, label=lbl, alpha=0.8, edgecolors='black')
+                ax_scat.annotate(lbl, (t_traf, f_acc), xytext=(8, 8), textcoords='offset points', fontsize=10)
+            
+            ax_scat.set_title(f"Efficiency Champion: Total {traffic_display} vs Final Accuracy")
+            ax_scat.set_xlabel(f"Total {traffic_display}")
+            ax_scat.set_ylabel(f"Final {acc_metric.replace('_', ' ').title()}")
+            ax_scat.grid(True, linestyle='--')
+            # Thêm đường chéo tưởng tượng để phân chia vùng hiệu quả (Góc trên cùng bên trái là tốt nhất)
+            p_scat = f"efficiency_scatter_{current}.png"
+            fig_scat.savefig(p_scat)
+            output_files.append(p_scat)
+
+        plt.close(fig_cum)
+        plt.close(fig_scat)
 
     # --- BƯỚC 4: GỬI TẤT CẢ ẢNH ---
     for p in output_files:
