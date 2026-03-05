@@ -271,7 +271,7 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 ax_scat.scatter(t_traf, f_acc, s=150, label=lbl, alpha=0.8, edgecolors='black')
                 ax_scat.annotate(lbl, (t_traf, f_acc), xytext=(8, 8), textcoords='offset points', fontsize=10)
             
-            ax_scat.set_title(f"Efficiency Champion: Total {traffic_display} vs Final Accuracy")
+            ax_scat.set_title(f"Efficiency: Total {traffic_display} vs Final Accuracy")
             ax_scat.set_xlabel(f"Total {traffic_display}")
             ax_scat.set_ylabel(f"Final {acc_metric.replace('_', ' ').title()}")
             ax_scat.grid(True, linestyle='--')
