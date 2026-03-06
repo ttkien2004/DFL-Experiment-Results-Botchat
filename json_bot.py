@@ -99,18 +99,11 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(f"📊 Đang quét động (Dynamic Scan) {len(files)} file JSON...")
 
-    # Mapping round: Lấy mốc index thực tế
-    target_rounds_mapping = {
-        19: 20, 
-        39: 40, 
-        59: 60, 
-        79: 80, 
-        99: 100
-    }
+    target_rounds_mapping = {19: 20, 39: 40, 59: 60, 79: 80, 99: 100}
     
     data_list = [] 
     summary_records = []
-    global_metrics = set() # Lưu trữ tất cả các metrics phát hiện được
+    global_metrics = set()
 
     # --- BƯỚC 1: ĐỌC VÀ PHÁT HIỆN METRICS ĐỘNG ---
     for file in files:
@@ -119,21 +112,28 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
             with open(file_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
             
-            # Lấy tên thuật toán (Krum, Median, Trimmed Mean...)
             algo_name = data.get('algo_name', [file.replace('.json', '')])[0]
             rounds = data.get('rounds', [])
             
-            if not rounds:
-                continue
+            if not rounds: continue
                 
-            # Tạo Dictionary để dựng DataFrame
             df_dict = {'Round': rounds}
             file_metrics = []
+            avg_latency = None
             
-            # Quét các keys để tìm metrics hợp lệ
             for key, val in data.items():
                 if key == 'rounds': continue
-                # Tiêu chí 1 metric hợp lệ: là list, cùng độ dài với rounds, phần tử là số
+                
+                # --- XỬ LÝ RIÊNG BIỂU ĐỒ LATENCY BREAKDOWN ---
+                if key == 'latency_breakdown':
+                    if isinstance(val, list) and len(val) > 0 and isinstance(val[0], dict):
+                        avg_latency = {}
+                        lat_keys = val[0].keys()
+                        for k in lat_keys:
+                            # Cộng tổng time của key đó qua các vòng rồi chia đều cho tổng số vòng
+                            avg_latency[k] = sum(item.get(k, 0) for item in val) / len(val)
+                    continue
+
                 if isinstance(val, list) and len(val) == len(rounds) and len(val) > 0:
                     if isinstance(val[0], (int, float)):
                         df_dict[key] = val
@@ -141,9 +141,8 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         file_metrics.append(key)
             
             df = pd.DataFrame(df_dict)
-            data_list.append({'label': algo_name, 'df': df})
+            data_list.append({'label': algo_name, 'df': df, 'avg_latency': avg_latency})
             
-            # --- TRÍCH XUẤT CHỈ SỐ THEO MAPPING CHO FILE CSV ---
             for actual_r, display_r in target_rounds_mapping.items():
                 row = df[df['Round'] == actual_r]
                 if not row.empty:
@@ -152,11 +151,9 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         'Round (Display)': display_r,
                         'Round (Actual index)': actual_r
                     }
-                    # Đưa toàn bộ metrics tìm được vào record
                     for metric in file_metrics:
                         val = row[metric].values[0]
                         record[metric] = round(val, 4) if not pd.isna(val) else None
-                    
                     summary_records.append(record)
                     
         except Exception as e:
@@ -180,13 +177,10 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             if metric in df.columns:
                 metric_data = df[metric]
-                # Kiểm tra nếu metric không rỗng toàn bộ
                 if not metric_data.isna().all():
                     has_valid_data = True
-                    # Tùy biến style đường kẻ dựa trên tên metric (Ví dụ: loss thì kẻ đứt)
                     linestyle = '--' if 'error' in metric.lower() or 'loss' in metric.lower() else '-'
                     marker = 's' if 'asr' in metric.lower() else 'o'
-                    
                     ax.plot(df['Round'], metric_data, marker=marker, markersize=4, linestyle=linestyle, label=f"{label}")
 
         if has_valid_data:
@@ -196,20 +190,16 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ax.set_ylabel(metric_display_name)
             ax.legend()
             ax.grid(True)
-            
             p_metric = f"metric_{metric}_{current}.png"
             fig.savefig(p_metric)
             output_files.append(p_metric)
-            
         plt.close(fig)
 
-    # --- TÌM CHỈ SỐ ACCURACY VÀ TRAFFIC ---
+    # --- TÌM CHỈ SỐ ACCURACY VÀ TRAFFIC CHO CÁC BIỂU ĐỒ ĐẶC THÙ ---
     acc_metric = next((m for m in global_metrics if 'acc' in m.lower()), None)
     traffic_metric = next((m for m in global_metrics if 'traffic' in m.lower() or 'comm' in m.lower()), None)
+
     # --- BƯỚC 3: CONVERGENCE BAR CHART ĐỘNG ---
-    # Tự động tìm metric đại diện cho Accuracy (ví dụ: clean_acc, avg_acc)
-    acc_metric = next((m for m in global_metrics if 'acc' in m.lower()), None)
-    
     if acc_metric:
         CONV_THRESHOLD = 0.75  
         convergence_data = []
@@ -228,8 +218,8 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ax_bar.bar_label(bars)
             p_conv = f"conv_{current}.png"; fig_bar.savefig(p_conv); output_files.append(p_conv)
             plt.close(fig_bar)
+
     # --- BƯỚC 4: BIỂU ĐỒ BĂNG THÔNG (CUMULATIVE & SCATTER) ---
-    
     if traffic_metric and acc_metric:
         fig_cum, ax_cum = plt.subplots(figsize=(10, 6))
         fig_scat, ax_scat = plt.subplots(figsize=(10, 6))
@@ -243,19 +233,17 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             if traffic_metric in df.columns and acc_metric in df.columns:
                 has_traffic_data = True
-                # Tính Cumulative Traffic (cộng dồn theo từng vòng)
                 cum_traffic = df[traffic_metric].cumsum()
                 
-                # 4.1: Line Chart (Cumulative Traffic)
+                # Line Chart (Cumulative)
                 ax_cum.plot(df['Round'], cum_traffic, marker='', linestyle='-', linewidth=2, label=f"{label}")
                 
-                # Trích xuất điểm cuối cùng cho Scatter Plot
+                # Scatter Plot (Efficiency)
                 total_traffic = cum_traffic.iloc[-1]
                 final_acc = df[acc_metric].iloc[-1]
                 scatter_points.append((total_traffic, final_acc, label))
 
         if has_traffic_data:
-            # Lưu Line Chart Cumulative
             traffic_display = traffic_metric.replace('_', ' ').title()
             ax_cum.set_title(f"Cumulative {traffic_display} over Rounds - {current}")
             ax_cum.set_xlabel("Rounds")
@@ -266,7 +254,6 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
             fig_cum.savefig(p_cum)
             output_files.append(p_cum)
             
-            # Lưu Scatter Plot Efficiency
             for t_traf, f_acc, lbl in scatter_points:
                 ax_scat.scatter(t_traf, f_acc, s=150, label=lbl, alpha=0.8, edgecolors='black')
                 ax_scat.annotate(lbl, (t_traf, f_acc), xytext=(8, 8), textcoords='offset points', fontsize=10)
@@ -275,7 +262,6 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ax_scat.set_xlabel(f"Total {traffic_display}")
             ax_scat.set_ylabel(f"Final {acc_metric.replace('_', ' ').title()}")
             ax_scat.grid(True, linestyle='--')
-            # Thêm đường chéo tưởng tượng để phân chia vùng hiệu quả (Góc trên cùng bên trái là tốt nhất)
             p_scat = f"efficiency_scatter_{current}.png"
             fig_scat.savefig(p_scat)
             output_files.append(p_scat)
@@ -283,17 +269,53 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
         plt.close(fig_cum)
         plt.close(fig_scat)
 
-    # --- BƯỚC 4: GỬI TẤT CẢ ẢNH ---
+    # --- BƯỚC 5: BIỂU ĐỒ CỘT CHỒNG LATENCY BREAKDOWN ---
+    has_latency = any(item.get('avg_latency') for item in data_list)
+    if has_latency:
+        fig_lat, ax_lat = plt.subplots(figsize=(10, 6))
+        
+        lat_items = [item for item in data_list if item.get('avg_latency')]
+        labels = [item['label'] for item in lat_items]
+        
+        # Tìm tất cả các thành phần thời gian (ví dụ: time_training, time_gossip...)
+        all_keys = set()
+        for item in lat_items:
+            all_keys.update(item['avg_latency'].keys())
+        all_keys = sorted(list(all_keys))
+        
+        bottom = [0] * len(labels)
+        for key in all_keys:
+            values = [item['avg_latency'].get(key, 0) for item in lat_items]
+            # Xóa chữ 'time_' cho label chú thích gọn gàng hơn
+            display_name = key.replace('time_', '').replace('_', ' ').title()
+            ax_lat.bar(labels, values, bottom=bottom, label=display_name)
+            # Cập nhật vị trí bắt đầu cho phần tiếp theo của thanh cột
+            bottom = [b + v for b, v in zip(bottom, values)]
+            
+        ax_lat.set_title(f"Average Latency Breakdown per Round - {current}")
+        ax_lat.set_ylabel("Average Time (seconds)")
+        ax_lat.legend()
+        ax_lat.grid(axis='y', linestyle='--')
+        
+        # Hiển thị tổng số giây (Total Time) trên đỉnh mỗi cột
+        for i in range(len(labels)):
+            ax_lat.text(i, bottom[i] + (max(bottom)*0.01), f"{bottom[i]:.2f}s", ha='center', fontweight='bold')
+
+        p_lat = f"latency_breakdown_{current}.png"
+        fig_lat.savefig(p_lat)
+        output_files.append(p_lat)
+        plt.close(fig_lat)
+
+    # --- BƯỚC 6: GỬI TẤT CẢ ẢNH ---
     for p in output_files:
         with open(p, 'rb') as f: await update.message.reply_photo(f)
         os.remove(p)
 
-    # --- BƯỚC 5: TẠO VÀ GỬI FILE SUMMARY CSV ĐỘNG ---
+    # --- BƯỚC 7: TẠO VÀ GỬI FILE SUMMARY CSV ĐỘNG ---
     if summary_records:
         summary_df = pd.DataFrame(summary_records)
         summary_df = summary_df.sort_values(by=['Algorithm', 'Round (Actual index)'])
         
-        # Sắp xếp lại thứ tự cột cho đẹp: Algorithm, Round, rồi đến các metrics
         cols = ['Algorithm', 'Round (Display)', 'Round (Actual index)']
         metrics_cols = [c for c in summary_df.columns if c not in cols]
         summary_df = summary_df[cols + sorted(metrics_cols)]
