@@ -350,6 +350,57 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
         output_files.append(p_lat)
         plt.close(fig_lat)
 
+    # --- BƯỚC 6: BIỂU ĐỒ CỘT FINAL ACCURACY ---
+    if acc_metric:
+        fig_acc_bar, ax_acc_bar = plt.subplots(figsize=(10, 6))
+        acc_labels = []
+        final_accs = []
+        
+        # Lấy Accuracy ở vòng cuối cùng của mỗi Model
+        for item in data_list:
+            df = item['df']
+            label = item['label']
+            if acc_metric in df.columns:
+                # Tìm giá trị hợp lệ cuối cùng
+                valid_acc_data = df[acc_metric].dropna()
+                if not valid_acc_data.empty:
+                    final_acc = valid_acc_data.iloc[-1]
+                    acc_labels.append(label)
+                    final_accs.append(final_acc)
+        
+        if final_accs:
+            # Tạo màu Pastel đa dạng cho các cột
+            bar_colors = ['#8dd3c7', '#ffffb3', '#bebada', '#fb8072', '#80b1d3', '#fdb462', '#b3de69']
+            colors = [bar_colors[i % len(bar_colors)] for i in range(len(acc_labels))]
+            
+            bars_acc = ax_acc_bar.bar(acc_labels, final_accs, color=colors, edgecolor='dimgray', hatch='//')
+            
+            metric_display_name = acc_metric.replace('_', ' ').title()
+            ax_acc_bar.set_title(f"Final {metric_display_name} Comparison - {current}")
+            ax_acc_bar.set_ylabel(metric_display_name)
+            
+            # Ghi % trên đỉnh mỗi cột
+            for bar in bars_acc:
+                height = bar.get_height()
+                ax_acc_bar.text(
+                    bar.get_x() + bar.get_width() / 2, 
+                    height + 0.01, 
+                    f"{height:.2%}", # Format dạng 98.50%
+                    ha='center', 
+                    va='bottom',
+                    fontweight='bold',
+                    color='black'
+                )
+            
+            # Tăng giới hạn trục Y thêm 1 chút để không bị cắt chữ
+            max_val = max(final_accs)
+            ax_acc_bar.set_ylim(0, max_val * 1.15)
+            ax_acc_bar.grid(axis='y', linestyle='--', alpha=0.7)
+            
+            p_acc_bar = f"bar_final_{acc_metric}_{current}.png"
+            fig_acc_bar.savefig(p_acc_bar)
+            output_files.append(p_acc_bar)
+            plt.close(fig_acc_bar)
     # --- BƯỚC 6: GỬI TẤT CẢ ẢNH ---
     for p in output_files:
         with open(p, 'rb') as f: await update.message.reply_photo(f)
