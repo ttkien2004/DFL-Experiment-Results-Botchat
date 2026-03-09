@@ -197,7 +197,7 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # --- TÌM CHỈ SỐ ACCURACY VÀ TRAFFIC CHO CÁC BIỂU ĐỒ ĐẶC THÙ ---
     acc_metric = next((m for m in global_metrics if 'acc' in m.lower()), None)
-    traffic_metric = next((m for m in global_metrics if 'traffic' in m.lower() or 'comm' in m.lower()), None)
+    traffic_metric = next((m for m in global_metrics if 'traffic' in m.lower() or 'comm_traffic_mb' in m.lower()), None)
 
     # --- BƯỚC 3: CONVERGENCE BAR CHART ĐỘNG ---
     if acc_metric:
