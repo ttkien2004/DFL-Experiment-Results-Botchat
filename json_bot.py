@@ -357,7 +357,8 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # --- BƯỚC 6: BIỂU ĐỒ CỘT FINAL ACCURACY ---
     if acc_metric:
-        fig_acc_bar, ax_acc_bar = plt.subplots(figsize=(10, 6))
+        # Tăng kích thước chiều cao từ 6 lên 8 để biểu đồ trông cao và thanh thoát hơn
+        fig_acc_bar, ax_acc_bar = plt.subplots(figsize=(10, 8))
         acc_labels = []
         final_accs = []
         
@@ -376,9 +377,18 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if final_accs:
             # Tạo màu Pastel đa dạng cho các cột
             bar_colors = ['#8dd3c7', '#ffffb3', '#bebada', '#fb8072', '#80b1d3', '#fdb462', '#b3de69']
+            # Danh sách các họa tiết khác nhau
+            patterns = ['//', '..', 'xx', '\\\\', 'OO', '--', '++']
+            
             colors = [bar_colors[i % len(bar_colors)] for i in range(len(acc_labels))]
             
-            bars_acc = ax_acc_bar.bar(acc_labels, final_accs, color=colors, edgecolor='dimgray', hatch='//')
+            # Vẽ các cột trước (chưa có họa tiết)
+            bars_acc = ax_acc_bar.bar(acc_labels, final_accs, color=colors, edgecolor='dimgray')
+            
+            # Lặp qua từng cột để gán họa tiết (hatch) tương ứng
+            for i, bar in enumerate(bars_acc):
+                hatch_pattern = patterns[i % len(patterns)]
+                bar.set_hatch(hatch_pattern)
             
             metric_display_name = acc_metric.replace('_', ' ').title()
             ax_acc_bar.set_title(f"Final {metric_display_name} Comparison - {current}")
