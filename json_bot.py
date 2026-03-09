@@ -277,30 +277,41 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
         lat_items = [item for item in data_list if item.get('avg_latency')]
         labels = [item['label'] for item in lat_items]
         
-        # Tìm tất cả các thành phần thời gian (ví dụ: time_training, time_gossip...)
+        # Tìm tất cả các thành phần thời gian
         all_keys = set()
         for item in lat_items:
             all_keys.update(item['avg_latency'].keys())
         all_keys = sorted(list(all_keys))
         
-        # Tính tổng thời gian của mỗi thuật toán để chia phần trăm
         totals = [sum(item['avg_latency'].values()) for item in lat_items]
-        
         bottom = [0] * len(labels)
-        for key in all_keys:
+        
+        # Danh sách màu nhạt (Pastel) và họa tiết (Hatches)
+        # Các họa tiết: '..' (chấm bi), '//' (kẻ sọc), 'O' (vòng tròn lớn), 'xx' (lưới đan), '' (trơn)
+        light_colors = ['#ff9999', '#66b3ff', '#99ff99', '#ffcc99', '#c2c2f0', '#ffb3e6', '#e6f69d']
+        patterns = ['..', '', '//', 'O', 'xx', '*', '++']
+        
+        for idx, key in enumerate(all_keys):
             values = [item['avg_latency'].get(key, 0) for item in lat_items]
             display_name = key.replace('time_', '').replace('_', ' ').title()
             
-            # Vẽ khối của bar
-            bars = ax_lat.bar(labels, values, bottom=bottom, label=display_name, edgecolor='white')
+            # Chọn màu và họa tiết theo vòng lặp
+            c = light_colors[idx % len(light_colors)]
+            h = patterns[idx % len(patterns)]
             
-            # Thêm Text (Thời gian + Phần trăm) vào chính giữa mỗi khối
+            # Vẽ khối với màu sáng, có họa tiết và viền xám mỏng
+            bars = ax_lat.bar(
+                labels, values, bottom=bottom, label=display_name, 
+                color=c, edgecolor='dimgray', hatch=h
+            )
+            
+            # Thêm Text (Thời gian + Phần trăm)
             for i, (bar, val, total) in enumerate(zip(bars, values, totals)):
                 if total > 0 and val > 0:
                     pct = (val / total) * 100
-                    # Chỉ ghi chữ lên những khối chiếm hơn 3% để tránh đè chữ
                     if pct > 3:
                         y_center = bottom[i] + (val / 2)
+                        # Vì nền sáng, ta dùng chữ đen để luôn dễ đọc
                         ax_lat.text(
                             bar.get_x() + bar.get_width() / 2, 
                             y_center, 
@@ -312,17 +323,16 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             fontweight='bold'
                         )
             
-            # Cập nhật vị trí bắt đầu cho phần tiếp theo của thanh cột
             bottom = [b + v for b, v in zip(bottom, values)]
             
         ax_lat.set_title(f"Average Latency Breakdown per Round - {current}")
         ax_lat.set_ylabel("Average Time (seconds)")
         
-        # Đưa bảng chú giải (Legend) ra ngoài biểu đồ để không che khuất dữ liệu
+        # Bảng chú giải ra ngoài biểu đồ
         ax_lat.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-        ax_lat.grid(axis='y', linestyle='--', alpha=0.7)
+        ax_lat.grid(axis='y', linestyle='--', alpha=0.5) # Làm mờ lưới nền để nổi khối
         
-        # Hiển thị tổng số giây (Total Time) trên đỉnh mỗi cột
+        # Hiển thị tổng số giây
         for i in range(len(labels)):
             if totals[i] > 0:
                 ax_lat.text(
@@ -333,7 +343,6 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     color='darkred'
                 )
 
-        # Điều chỉnh lại layout để không bị cắt mất bảng chú giải
         plt.tight_layout()
         
         p_lat = f"latency_breakdown_{current}.png"
