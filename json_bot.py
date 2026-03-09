@@ -7,6 +7,7 @@ import shutil
 from flask import Flask
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
+import re
 
 # --- CẤU HÌNH ---
 TOKEN = os.getenv("BOT_TOKEN", "YOUR_ACTUAL_BOT_TOKEN_HERE") 
@@ -357,7 +358,6 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # --- BƯỚC 6: BIỂU ĐỒ CỘT FINAL ACCURACY ---
     if acc_metric:
-        # Tăng kích thước chiều cao từ 6 lên 8 để biểu đồ trông cao và thanh thoát hơn
         fig_acc_bar, ax_acc_bar = plt.subplots(figsize=(10, 8))
         acc_labels = []
         final_accs = []
@@ -365,7 +365,13 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Lấy Accuracy ở vòng cuối cùng của mỗi Model
         for item in data_list:
             df = item['df']
-            label = item['label']
+            raw_label = str(item['label'])
+            
+            # --- 1. TỰ ĐỘNG ĐỊNH DẠNG KÝ HIỆU BETA ---
+            # Dùng Regex để tìm các số (nguyên/thập phân) nằm ở cuối tên, phân cách bởi khoảng trắng, '_' hoặc '-'
+            # Ví dụ: "COBRA-DFL 0.5" sẽ đổi thành "COBRA-DFL ($\beta = 0.5$)"
+            label = re.sub(r'[\s_\-]+([0-9]+\.?[0-9]*)$', r' ($\\beta = \1$)', raw_label)
+            
             if acc_metric in df.columns:
                 # Tìm giá trị hợp lệ cuối cùng
                 valid_acc_data = df[acc_metric].dropna()
@@ -377,25 +383,32 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if final_accs:
             # Tạo màu Pastel đa dạng cho các cột
             bar_colors = ['#8dd3c7', '#ffffb3', '#bebada', '#fb8072', '#80b1d3', '#fdb462', '#b3de69']
-            # Danh sách các họa tiết khác nhau
             patterns = ['//', '..', 'xx', '\\\\', 'OO', '--', '++']
             
-            colors = [bar_colors[i % len(bar_colors)] for i in range(len(acc_labels))]
+            bars_acc_list = []
             
-            # Vẽ các cột trước (chưa có họa tiết)
-            bars_acc = ax_acc_bar.bar(acc_labels, final_accs, color=colors, edgecolor='dimgray')
-            
-            # Lặp qua từng cột để gán họa tiết (hatch) tương ứng
-            for i, bar in enumerate(bars_acc):
-                hatch_pattern = patterns[i % len(patterns)]
-                bar.set_hatch(hatch_pattern)
+            # --- 2. VẼ TỪNG CỘT ĐỂ TẠO BẢNG CHÚ GIẢI (LEGEND) ---
+            for i, (lbl, val) in enumerate(zip(acc_labels, final_accs)):
+                c = bar_colors[i % len(bar_colors)]
+                h = patterns[i % len(patterns)]
+                
+                # Tham số label=lbl là cực kỳ quan trọng để vẽ ra Legend sau này
+                bar = ax_acc_bar.bar(lbl, val, color=c, edgecolor='dimgray', hatch=h, label=lbl)
+                bars_acc_list.append(bar[0])
             
             metric_display_name = acc_metric.replace('_', ' ').title()
             ax_acc_bar.set_title(f"Final {metric_display_name} Comparison - {current}")
             ax_acc_bar.set_ylabel(metric_display_name)
             
+            # --- THÊM BẢNG CHÚ GIẢI RA BÊN NGOÀI BIỂU ĐỒ ---
+            ax_acc_bar.legend(title="Algorithms", loc='center left', bbox_to_anchor=(1.05, 0.5))
+            
+            # In nghiêng nhãn trục X một chút để không bị dính vào nhau nếu tên quá dài
+            ax_acc_bar.set_xticks(range(len(acc_labels)))
+            ax_acc_bar.set_xticklabels(acc_labels, rotation=15, ha='right')
+            
             # Ghi % trên đỉnh mỗi cột
-            for bar in bars_acc:
+            for bar in bars_acc_list:
                 height = bar.get_height()
                 ax_acc_bar.text(
                     bar.get_x() + bar.get_width() / 2, 
@@ -411,6 +424,9 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
             max_val = max(final_accs)
             ax_acc_bar.set_ylim(0, max_val * 1.15)
             ax_acc_bar.grid(axis='y', linestyle='--', alpha=0.7)
+            
+            # Lệnh này giúp tự động bóp nhỏ biểu đồ lại để nhường không gian cho bảng Legend bên phải
+            plt.tight_layout()
             
             p_acc_bar = f"bar_final_{acc_metric}_{current}.png"
             fig_acc_bar.savefig(p_acc_bar)
