@@ -283,24 +283,59 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
             all_keys.update(item['avg_latency'].keys())
         all_keys = sorted(list(all_keys))
         
+        # Tính tổng thời gian của mỗi thuật toán để chia phần trăm
+        totals = [sum(item['avg_latency'].values()) for item in lat_items]
+        
         bottom = [0] * len(labels)
         for key in all_keys:
             values = [item['avg_latency'].get(key, 0) for item in lat_items]
-            # Xóa chữ 'time_' cho label chú thích gọn gàng hơn
             display_name = key.replace('time_', '').replace('_', ' ').title()
-            ax_lat.bar(labels, values, bottom=bottom, label=display_name)
+            
+            # Vẽ khối của bar
+            bars = ax_lat.bar(labels, values, bottom=bottom, label=display_name, edgecolor='white')
+            
+            # Thêm Text (Thời gian + Phần trăm) vào chính giữa mỗi khối
+            for i, (bar, val, total) in enumerate(zip(bars, values, totals)):
+                if total > 0 and val > 0:
+                    pct = (val / total) * 100
+                    # Chỉ ghi chữ lên những khối chiếm hơn 3% để tránh đè chữ
+                    if pct > 3:
+                        y_center = bottom[i] + (val / 2)
+                        ax_lat.text(
+                            bar.get_x() + bar.get_width() / 2, 
+                            y_center, 
+                            f"{val:.2f}s\n({pct:.1f}%)", 
+                            ha='center', 
+                            va='center', 
+                            color='black', 
+                            fontsize=9,
+                            fontweight='bold'
+                        )
+            
             # Cập nhật vị trí bắt đầu cho phần tiếp theo của thanh cột
             bottom = [b + v for b, v in zip(bottom, values)]
             
         ax_lat.set_title(f"Average Latency Breakdown per Round - {current}")
         ax_lat.set_ylabel("Average Time (seconds)")
-        ax_lat.legend()
-        ax_lat.grid(axis='y', linestyle='--')
+        
+        # Đưa bảng chú giải (Legend) ra ngoài biểu đồ để không che khuất dữ liệu
+        ax_lat.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+        ax_lat.grid(axis='y', linestyle='--', alpha=0.7)
         
         # Hiển thị tổng số giây (Total Time) trên đỉnh mỗi cột
         for i in range(len(labels)):
-            ax_lat.text(i, bottom[i] + (max(bottom)*0.01), f"{bottom[i]:.2f}s", ha='center', fontweight='bold')
+            if totals[i] > 0:
+                ax_lat.text(
+                    i, bottom[i] + (max(bottom)*0.02), 
+                    f"Total:\n{totals[i]:.2f}s", 
+                    ha='center', 
+                    fontweight='bold', 
+                    color='darkred'
+                )
 
+        # Điều chỉnh lại layout để không bị cắt mất bảng chú giải
+        plt.tight_layout()
+        
         p_lat = f"latency_breakdown_{current}.png"
         fig_lat.savefig(p_lat)
         output_files.append(p_lat)
