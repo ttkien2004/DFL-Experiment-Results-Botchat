@@ -286,21 +286,22 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
         totals = [sum(item['avg_latency'].values()) for item in lat_items]
         bottom = [0] * len(labels)
         
-        # Tối ưu cho in trắng đen: Dùng các mức xám (Grayscale) và họa tiết
-        bw_colors = ['#ffffff', '#e6e6e6', '#cccccc', '#b3b3b3', '#999999', '#808080', '#666666']
+        # BỘ MÀU TỐI ƯU CHO IN TRẮNG ĐEN (Khác biệt rõ rệt về độ sáng/tối)
+        # Bao gồm: Xanh dương đậm, Cam nhạt, Tím đậm, Đỏ tươi, Xanh lá đậm, Vàng sáng, Nâu
+        contrast_colors = ['#1f77b4', '#ffbb78', '#9467bd', '#d62728', '#2ca02c', '#e377c2', '#8c564b']
         patterns = ['//', '..', 'xx', '\\\\', 'OO', '--', '++']
         
         for idx, key in enumerate(all_keys):
             values = [item['avg_latency'].get(key, 0) for item in lat_items]
             display_name = key.replace('time_', '').replace('_', ' ').title()
             
-            c = bw_colors[idx % len(bw_colors)]
+            c = contrast_colors[idx % len(contrast_colors)]
             h = patterns[idx % len(patterns)]
             
-            # Vẽ khối với màu xám/trắng, họa tiết, và viền đen đậm
+            # Vẽ khối với màu sắc, họa tiết, và viền xám đen
             bars = ax_lat.bar(
                 labels, values, bottom=bottom, label=display_name, 
-                color=c, edgecolor='black', hatch=h
+                color=c, edgecolor='#333333', hatch=h
             )
             
             # Thêm Text (Thời gian + Phần trăm)
@@ -318,8 +319,8 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             color='black', 
                             fontsize=9,
                             fontweight='bold',
-                            # Thêm viền/nền trắng mờ để chữ luôn nổi bật trên nền họa tiết
-                            bbox=dict(facecolor='white', alpha=0.75, edgecolor='none', pad=1) 
+                            # Nền trắng mờ (alpha=0.85) lót dưới chữ giúp chữ Đen nổi bật trên mọi màu nền
+                            bbox=dict(facecolor='white', alpha=0.85, edgecolor='none', pad=1) 
                         )
             
             bottom = [b + v for b, v in zip(bottom, values)]
@@ -327,7 +328,7 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ax_lat.set_title(f"Average Latency Breakdown per Round - {current}")
         ax_lat.set_ylabel("Average Time (seconds)")
         
-        # XỬ LÝ TRÙNG CHỮ: Mở rộng trục Y thêm 20% so với cột cao nhất
+        # Mở rộng trục Y thêm 20% so với cột cao nhất để tránh đè chữ Total lên Tiêu đề
         if totals:
             ax_lat.set_ylim(0, max(totals) * 1.2)
         
@@ -342,9 +343,9 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     i, totals[i] + (max(totals) * 0.02), # Khoảng cách an toàn phía trên cột
                     f"Total:\n{totals[i]:.2f}s", 
                     ha='center', 
-                    va='bottom', # Đảm bảo text neo từ dưới lên
+                    va='bottom', 
                     fontweight='bold', 
-                    color='black' # Chuyển sang màu đen chuẩn cho bản in
+                    color='black'
                 )
 
         plt.tight_layout()
