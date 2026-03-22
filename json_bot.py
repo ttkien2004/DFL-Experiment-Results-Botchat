@@ -379,47 +379,42 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
             df = item['df']
             raw_label = str(item['label'])
             
-            # --- 1. TỰ ĐỘNG ĐỊNH DẠNG KÝ HIỆU BETA ---
-            # Dùng Regex để tìm các số (nguyên/thập phân) nằm ở cuối tên, phân cách bởi khoảng trắng, '_' hoặc '-'
-            # Ví dụ: "COBRA-DFL 0.5" sẽ đổi thành "COBRA-DFL ($\beta = 0.5$)"
-            label = re.sub(r'[\s_\-]+([0-9]+\.?[0-9]*)$', r' ($\\beta = \1$)', raw_label)
+            # --- 1. TỰ ĐỘNG ĐỊNH DẠNG KÝ HIỆU BETA CHO LEGEND ---
+            # Ví dụ: "COBRA-DFL 0.5" sẽ thành "COBRA-DFL ($\beta = 0.5$)"
+            formatted_label = re.sub(r'[\s_\-]+([0-9]+\.?[0-9]*)$', r' ($\\beta = \1$)', raw_label)
             
             if acc_metric in df.columns:
-                # Tìm giá trị hợp lệ cuối cùng
                 valid_acc_data = df[acc_metric].dropna()
                 if not valid_acc_data.empty:
                     final_acc = valid_acc_data.iloc[-1]
-                    acc_labels.append(label)
+                    acc_labels.append(formatted_label)
                     final_accs.append(final_acc)
         
         if final_accs:
-            # Tạo màu Pastel đa dạng cho các cột
             bar_colors = ['#8dd3c7', '#ffffb3', '#bebada', '#fb8072', '#80b1d3', '#fdb462', '#b3de69']
             patterns = ['//', '..', 'xx', '\\\\', 'OO', '--', '++']
             
             bars_acc_list = []
             
-            # --- 2. VẼ TỪNG CỘT ĐỂ TẠO BẢNG CHÚ GIẢI (LEGEND) ---
+            # --- 2. VẼ CỘT VÀ TẠO DỮ LIỆU CHO LEGEND ---
             for i, (lbl, val) in enumerate(zip(acc_labels, final_accs)):
                 c = bar_colors[i % len(bar_colors)]
                 h = patterns[i % len(patterns)]
                 
-                # Tham số label=lbl là cực kỳ quan trọng để vẽ ra Legend sau này
-                bar = ax_acc_bar.bar(lbl, val, color=c, edgecolor='dimgray', hatch=h, label=lbl)
+                # Dùng chỉ số i làm trục X thay vì chữ để không sinh ra text dưới chân cột
+                # Tham số label=lbl sẽ tự động lọt vào bảng Legend
+                bar = ax_acc_bar.bar(i, val, color=c, edgecolor='dimgray', hatch=h, label=lbl)
                 bars_acc_list.append(bar[0])
             
             metric_display_name = acc_metric.replace('_', ' ').title()
             ax_acc_bar.set_title(f"Final {metric_display_name} Comparison - {current}")
             ax_acc_bar.set_ylabel(metric_display_name)
             
-            # --- THÊM BẢNG CHÚ GIẢI RA BÊN NGOÀI BIỂU ĐỒ ---
+            # --- 3. XÓA NHÃN DƯỚI CHÂN CỘT VÀ BẬT LEGEND ---
+            ax_acc_bar.set_xticks([]) # Xóa toàn bộ ghi chú/ticks dưới trục X
             ax_acc_bar.legend(title="Algorithms", loc='center left', bbox_to_anchor=(1.05, 0.5))
             
-            # In nghiêng nhãn trục X một chút để không bị dính vào nhau nếu tên quá dài
-            ax_acc_bar.set_xticks(range(len(acc_labels)))
-            ax_acc_bar.set_xticklabels(acc_labels, rotation=15, ha='right')
-            
-            # Ghi % trên đỉnh mỗi cột
+            # --- 4. GHI % TRÊN ĐỈNH CỘT ---
             for bar in bars_acc_list:
                 height = bar.get_height()
                 ax_acc_bar.text(
@@ -432,12 +427,11 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     color='black'
                 )
             
-            # Tăng giới hạn trục Y thêm 1 chút để không bị cắt chữ
+            # Tăng giới hạn trục Y
             max_val = max(final_accs)
             ax_acc_bar.set_ylim(0, max_val * 1.15)
             ax_acc_bar.grid(axis='y', linestyle='--', alpha=0.7)
             
-            # Lệnh này giúp tự động bóp nhỏ biểu đồ lại để nhường không gian cho bảng Legend bên phải
             plt.tight_layout()
             
             p_acc_bar = f"bar_final_{acc_metric}_{current}.png"
