@@ -382,13 +382,8 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # --- 1. TỰ ĐỘNG ĐỊNH DẠNG KÝ HIỆU BETA ---
             # Dùng Regex để tìm các số (nguyên/thập phân) nằm ở cuối tên, phân cách bởi khoảng trắng, '_' hoặc '-'
             # Ví dụ: "COBRA-DFL 0.5" sẽ đổi thành "COBRA-DFL ($\beta = 0.5$)"
-            # label = re.sub(r'[\s_\-]+([0-9]+\.?[0-9]*)$', r' ($\\beta = \1$)', raw_label)
-            match = re.search(r'([0-9]+\.?[0-9]*)$', raw_label)
-            if match:
-                beta_val = match.group(1)
-                label = f"$\\beta = {beta_val}$"
-            else:
-                label = raw_label
+            label = re.sub(r'[\s_\-]+([0-9]+\.?[0-9]*)$', r' ($\\beta = \1$)', raw_label)
+            
             if acc_metric in df.columns:
                 # Tìm giá trị hợp lệ cuối cùng
                 valid_acc_data = df[acc_metric].dropna()
