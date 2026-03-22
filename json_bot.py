@@ -273,29 +273,34 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # --- BƯỚC 5: BIỂU ĐỒ CỘT CHỒNG LATENCY BREAKDOWN ---
     has_latency = any(item.get('avg_latency') for item in data_list)
     if has_latency:
-        # Chỉnh figsize thành (10, 8) cho đồng bộ với biểu đồ Bar Accuracy
         fig_lat, ax_lat = plt.subplots(figsize=(10, 8))
         
         lat_items = [item for item in data_list if item.get('avg_latency')]
         
-        # --- TỰ ĐỘNG ĐỊNH DẠNG KÝ HIỆU BETA CHO NHÃN ---
+        # --- 1. CHỈ GIỮ LẠI KÝ HIỆU BETA DƯỚI TRỤC X ---
         labels = []
         for item in lat_items:
             raw_label = str(item['label'])
-            # Chuyển đổi phần số ở cuối thành ký hiệu Beta (vd: "Algo 0.5" -> "Algo (\beta = 0.5)")
-            formatted_label = re.sub(r'[\s_\-]+([0-9]+\.?[0-9]*)$', r' ($\\beta = \1$)', raw_label)
+            match = re.search(r'[\s_\-]+([0-9]+\.?[0-9]*)$', raw_label)
+            if match:
+                formatted_label = f"$\\beta = {match.group(1)}$"
+            else:
+                formatted_label = raw_label # Fallback nếu không có số
             labels.append(formatted_label)
         
-        # Tìm tất cả các thành phần thời gian
+        # --- 2. LỌC BỎ CÁC THÀNH PHẦN THỜI GIAN QUÁ NHỎ (VD: ELECTION) ---
         all_keys = set()
         for item in lat_items:
-            all_keys.update(item['avg_latency'].keys())
+            for k, v in item['avg_latency'].items():
+                # Chỉ lấy những thành phần tốn > 0.01 giây (sẽ tự động loại bỏ time_election)
+                if v > 0.01: 
+                    all_keys.add(k)
         all_keys = sorted(list(all_keys))
         
-        totals = [sum(item['avg_latency'].values()) for item in lat_items]
+        totals = [sum(item['avg_latency'].get(k, 0) for k in all_keys) for item in lat_items]
         bottom = [0] * len(labels)
         
-        # BỘ MÀU TỐI ƯU CHO IN TRẮNG ĐEN (Khác biệt rõ rệt về độ sáng/tối)
+        # Bộ màu và họa tiết
         contrast_colors = ['#1f77b4', '#ffbb78', '#9467bd', '#d62728', '#2ca02c', '#e377c2', '#8c564b']
         patterns = ['//', '..', 'xx', '\\\\', 'OO', '--', '++']
         
@@ -306,7 +311,6 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
             c = contrast_colors[idx % len(contrast_colors)]
             h = patterns[idx % len(patterns)]
             
-            # Vẽ khối với màu sắc, họa tiết, và viền xám đen
             bars = ax_lat.bar(
                 labels, values, bottom=bottom, label=display_name, 
                 color=c, edgecolor='#333333', hatch=h
@@ -322,12 +326,7 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             bar.get_x() + bar.get_width() / 2, 
                             y_center, 
                             f"{val:.2f}s\n({pct:.1f}%)", 
-                            ha='center', 
-                            va='center', 
-                            color='black', 
-                            fontsize=9,
-                            fontweight='bold',
-                            # Nền trắng mờ (alpha=0.85) lót dưới chữ giúp chữ Đen nổi bật
+                            ha='center', va='center', color='black', fontsize=9, fontweight='bold',
                             bbox=dict(facecolor='white', alpha=0.85, edgecolor='none', pad=1) 
                         )
             
@@ -336,16 +335,14 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ax_lat.set_title(f"Average Latency Breakdown per Round - {current}")
         ax_lat.set_ylabel("Average Time (seconds)")
         
-        # Mở rộng trục Y thêm 20% so với cột cao nhất để tránh đè chữ Total lên Tiêu đề
         if totals:
             ax_lat.set_ylim(0, max(totals) * 1.2)
             
-        # --- ĐỊNH DẠNG LẠI NHÃN TRỤC X ---
-        # Nghiêng chữ 15 độ để các chữ chứa công thức Beta không dính vào nhau
-        ax_lat.set_xticks([])
-        ax_lat.set_xticklabels([])
+        # BẬT LẠI TRỤC X VỚI NHÃN GỌN GÀNG (Chỉ hiện Beta)
+        ax_lat.set_xticks(range(len(labels)))
+        ax_lat.set_xticklabels(labels, rotation=0, ha='center', fontsize=12)
         
-        # Bảng chú giải ra ngoài biểu đồ, nhường diện tích cho các cột
+        # Bảng chú giải Time Components (Sẽ tự động vắng bóng Election nhờ bộ lọc)
         ax_lat.legend(title="Time Components", loc='center left', bbox_to_anchor=(1.05, 0.5))
         ax_lat.grid(axis='y', linestyle='--', alpha=0.5)
         
@@ -353,12 +350,9 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
         for i in range(len(labels)):
             if totals[i] > 0:
                 ax_lat.text(
-                    i, totals[i] + (max(totals) * 0.02), # Khoảng cách an toàn phía trên cột
+                    i, totals[i] + (max(totals) * 0.02), 
                     f"Total:\n{totals[i]:.2f}s", 
-                    ha='center', 
-                    va='bottom', 
-                    fontweight='bold', 
-                    color='black'
+                    ha='center', va='bottom', fontweight='bold', color='black'
                 )
 
         plt.tight_layout()
