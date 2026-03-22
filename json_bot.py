@@ -282,20 +282,27 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
         labels = []
         for item in lat_items:
             raw_label = str(item['label'])
-            # Chuyển đổi phần số ở cuối thành ký hiệu Beta (vd: "Algo 0.5" -> "Algo (\beta = 0.5)")
-            formatted_label = re.sub(r'[\s_\-]+([0-9]+\.?[0-9]*)$', r' ($\\beta = \1$)', raw_label)
+            # Chỉ giữ lại phần \beta = ... (Bỏ tên thuật toán)
+            match = re.search(r'[\s_\-]+([0-9]+\.?[0-9]*)$', raw_label)
+            if match:
+                formatted_label = f"$\\beta = {match.group(1)}$"
+            else:
+                formatted_label = raw_label
             labels.append(formatted_label)
         
-        # Tìm tất cả các thành phần thời gian
+        # Tìm tất cả các thành phần thời gian (LỌC BỎ CÁC THÀNH PHẦN QUÁ NHỎ HOẶC BẰNG 0)
         all_keys = set()
         for item in lat_items:
-            all_keys.update(item['avg_latency'].keys())
+            for k, v in item['avg_latency'].items():
+                # Chỉ lấy những thành phần tốn > 0.0001 giây (sẽ tự động loại bỏ time_election)
+                if v > 1e-4: 
+                    all_keys.add(k)
         all_keys = sorted(list(all_keys))
         
         totals = [sum(item['avg_latency'].values()) for item in lat_items]
         bottom = [0] * len(labels)
         
-        # BỘ MÀU TỐI ƯU CHO IN TRẮNG ĐEN (Khác biệt rõ rệt về độ sáng/tối)
+        # BỘ MÀU TỐI ƯU CHO IN TRẮNG ĐEN
         contrast_colors = ['#1f77b4', '#ffbb78', '#9467bd', '#d62728', '#2ca02c', '#e377c2', '#8c564b']
         patterns = ['//', '..', 'xx', '\\\\', 'OO', '--', '++']
         
@@ -306,7 +313,6 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
             c = contrast_colors[idx % len(contrast_colors)]
             h = patterns[idx % len(patterns)]
             
-            # Vẽ khối với màu sắc, họa tiết, và viền xám đen
             bars = ax_lat.bar(
                 labels, values, bottom=bottom, label=display_name, 
                 color=c, edgecolor='#333333', hatch=h
@@ -322,12 +328,7 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             bar.get_x() + bar.get_width() / 2, 
                             y_center, 
                             f"{val:.2f}s\n({pct:.1f}%)", 
-                            ha='center', 
-                            va='center', 
-                            color='black', 
-                            fontsize=9,
-                            fontweight='bold',
-                            # Nền trắng mờ (alpha=0.85) lót dưới chữ giúp chữ Đen nổi bật
+                            ha='center', va='center', color='black', fontsize=9, fontweight='bold',
                             bbox=dict(facecolor='white', alpha=0.85, edgecolor='none', pad=1) 
                         )
             
@@ -336,16 +337,14 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ax_lat.set_title(f"Average Latency Breakdown per Round - {current}")
         ax_lat.set_ylabel("Average Time (seconds)")
         
-        # Mở rộng trục Y thêm 20% so với cột cao nhất để tránh đè chữ Total lên Tiêu đề
         if totals:
             ax_lat.set_ylim(0, max(totals) * 1.2)
             
-        # --- ĐỊNH DẠNG LẠI NHÃN TRỤC X ---
-        # Nghiêng chữ 15 độ để các chữ chứa công thức Beta không dính vào nhau
         ax_lat.set_xticks(range(len(labels)))
-        ax_lat.set_xticklabels(labels, rotation=15, ha='right')
+        # Xoay chữ nhẹ để không dính vào nhau
+        ax_lat.set_xticklabels(labels, rotation=0, ha='center') 
         
-        # Bảng chú giải ra ngoài biểu đồ, nhường diện tích cho các cột
+        # Bảng chú giải ra ngoài biểu đồ
         ax_lat.legend(title="Time Components", loc='center left', bbox_to_anchor=(1.05, 0.5))
         ax_lat.grid(axis='y', linestyle='--', alpha=0.5)
         
@@ -353,12 +352,9 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
         for i in range(len(labels)):
             if totals[i] > 0:
                 ax_lat.text(
-                    i, totals[i] + (max(totals) * 0.02), # Khoảng cách an toàn phía trên cột
+                    i, totals[i] + (max(totals) * 0.02), 
                     f"Total:\n{totals[i]:.2f}s", 
-                    ha='center', 
-                    va='bottom', 
-                    fontweight='bold', 
-                    color='black'
+                    ha='center', va='bottom', fontweight='bold', color='black'
                 )
 
         plt.tight_layout()
@@ -379,13 +375,15 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
             df = item['df']
             raw_label = str(item['label'])
             
-            # --- 1. TỰ ĐỘNG ĐỊNH DẠNG KÝ HIỆU BETA ---
-            # Dùng Regex để tìm các số (nguyên/thập phân) nằm ở cuối tên, phân cách bởi khoảng trắng, '_' hoặc '-'
-            # Ví dụ: "COBRA-DFL 0.5" sẽ đổi thành "COBRA-DFL ($\beta = 0.5$)"
-            label = re.sub(r'[\s_\-]+([0-9]+\.?[0-9]*)$', r' ($\\beta = \1$)', raw_label)
+            # --- TỰ ĐỘNG ĐỊNH DẠNG KÝ HIỆU BETA (Chỉ giữ lại Beta) ---
+            match = re.search(r'[\s_\-]+([0-9]+\.?[0-9]*)$', raw_label)
+            if match:
+                # Bỏ tên thuật toán, chỉ gán ký hiệu Beta
+                label = f"$\\beta = {match.group(1)}$"
+            else:
+                label = raw_label
             
             if acc_metric in df.columns:
-                # Tìm giá trị hợp lệ cuối cùng
                 valid_acc_data = df[acc_metric].dropna()
                 if not valid_acc_data.empty:
                     final_acc = valid_acc_data.iloc[-1]
@@ -393,31 +391,27 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     final_accs.append(final_acc)
         
         if final_accs:
-            # Tạo màu Pastel đa dạng cho các cột
             bar_colors = ['#8dd3c7', '#ffffb3', '#bebada', '#fb8072', '#80b1d3', '#fdb462', '#b3de69']
             patterns = ['//', '..', 'xx', '\\\\', 'OO', '--', '++']
             
             bars_acc_list = []
             
-            # --- 2. VẼ TỪNG CỘT ĐỂ TẠO BẢNG CHÚ GIẢI (LEGEND) ---
+            # Vẽ các cột
             for i, (lbl, val) in enumerate(zip(acc_labels, final_accs)):
                 c = bar_colors[i % len(bar_colors)]
                 h = patterns[i % len(patterns)]
                 
-                # Tham số label=lbl là cực kỳ quan trọng để vẽ ra Legend sau này
-                bar = ax_acc_bar.bar(lbl, val, color=c, edgecolor='dimgray', hatch=h, label=lbl)
+                # Vẽ cột (không cần legend nữa nên bỏ parameter label)
+                bar = ax_acc_bar.bar(lbl, val, color=c, edgecolor='dimgray', hatch=h)
                 bars_acc_list.append(bar[0])
             
             metric_display_name = acc_metric.replace('_', ' ').title()
             ax_acc_bar.set_title(f"Final {metric_display_name} Comparison - {current}")
             ax_acc_bar.set_ylabel(metric_display_name)
             
-            # --- THÊM BẢNG CHÚ GIẢI RA BÊN NGOÀI BIỂU ĐỒ ---
-            ax_acc_bar.legend(title="Algorithms", loc='center left', bbox_to_anchor=(1.05, 0.5))
-            
-            # In nghiêng nhãn trục X một chút để không bị dính vào nhau nếu tên quá dài
+            # Định dạng trục X
             ax_acc_bar.set_xticks(range(len(acc_labels)))
-            ax_acc_bar.set_xticklabels(acc_labels, rotation=15, ha='right')
+            ax_acc_bar.set_xticklabels(acc_labels, rotation=0, ha='center', fontsize=12) # Chữ thẳng, to rõ ràng
             
             # Ghi % trên đỉnh mỗi cột
             for bar in bars_acc_list:
@@ -425,19 +419,18 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 ax_acc_bar.text(
                     bar.get_x() + bar.get_width() / 2, 
                     height + 0.01, 
-                    f"{height:.2%}", # Format dạng 98.50%
+                    f"{height:.2%}",
                     ha='center', 
                     va='bottom',
                     fontweight='bold',
                     color='black'
                 )
             
-            # Tăng giới hạn trục Y thêm 1 chút để không bị cắt chữ
+            # Tăng giới hạn trục Y
             max_val = max(final_accs)
             ax_acc_bar.set_ylim(0, max_val * 1.15)
             ax_acc_bar.grid(axis='y', linestyle='--', alpha=0.7)
             
-            # Lệnh này giúp tự động bóp nhỏ biểu đồ lại để nhường không gian cho bảng Legend bên phải
             plt.tight_layout()
             
             p_acc_bar = f"bar_final_{acc_metric}_{current}.png"
