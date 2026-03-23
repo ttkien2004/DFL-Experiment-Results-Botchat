@@ -285,17 +285,34 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if match:
                 formatted_label = f"$\\beta = {match.group(1)}$"
             else:
-                formatted_label = raw_label # Fallback nếu không có số
+                formatted_label = raw_label 
             labels.append(formatted_label)
         
-        # --- 2. LỌC BỎ CÁC THÀNH PHẦN THỜI GIAN QUÁ NHỎ (VD: ELECTION) ---
-        all_keys = set()
+        # --- 2. LỌC BỎ CÁC THÀNH PHẦN QUÁ NHỎ & SẮP XẾP THEO THỨ TỰ TÙY CHỈNH ---
+        raw_keys = set()
         for item in lat_items:
             for k, v in item['avg_latency'].items():
-                # Chỉ lấy những thành phần tốn > 0.01 giây (sẽ tự động loại bỏ time_election)
-                if v > 0.01: 
-                    all_keys.add(k)
-        all_keys = sorted(list(all_keys))
+                if v > 0.01: # Loại bỏ time_election
+                    raw_keys.add(k)
+                    
+        # Danh sách thứ tự ưu tiên của bạn
+        desired_order = [
+            'time_clustering', 
+            'time_training', 
+            'time_gossip', 
+            'time_aggregation', 
+            'time_consensus'
+        ]
+        
+        all_keys = []
+        # Bốc các key theo đúng thứ tự desired_order
+        for k in desired_order:
+            if k in raw_keys:
+                all_keys.append(k)
+        # Phòng hờ: Thêm các key khác (nếu xuất hiện sau này) vào cuối
+        for k in raw_keys:
+            if k not in desired_order:
+                all_keys.append(k)
         
         totals = [sum(item['avg_latency'].get(k, 0) for k in all_keys) for item in lat_items]
         bottom = [0] * len(labels)
@@ -303,6 +320,9 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Bộ màu và họa tiết
         contrast_colors = ['#1f77b4', '#ffbb78', '#9467bd', '#d62728', '#2ca02c', '#e377c2', '#8c564b']
         patterns = ['//', '..', 'xx', '\\\\', 'OO', '--', '++']
+        
+        # Biến chỉnh độ rộng của cột (Mặc định là 0.8, chỉnh xuống 0.55 cho thon gọn)
+        bar_width = 0.55 
         
         for idx, key in enumerate(all_keys):
             values = [item['avg_latency'].get(key, 0) for item in lat_items]
@@ -312,7 +332,7 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
             h = patterns[idx % len(patterns)]
             
             bars = ax_lat.bar(
-                labels, values, bottom=bottom, label=display_name, 
+                labels, values, width=bar_width, bottom=bottom, label=display_name, 
                 color=c, edgecolor='#333333', hatch=h
             )
             
@@ -338,11 +358,11 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if totals:
             ax_lat.set_ylim(0, max(totals) * 1.2)
             
-        # BẬT LẠI TRỤC X VỚI NHÃN GỌN GÀNG (Chỉ hiện Beta)
+        # Trục X
         ax_lat.set_xticks(range(len(labels)))
         ax_lat.set_xticklabels(labels, rotation=0, ha='center', fontsize=12)
         
-        # Bảng chú giải Time Components (Sẽ tự động vắng bóng Election nhờ bộ lọc)
+        # Bảng chú giải
         ax_lat.legend(title="Time Components", loc='center left', bbox_to_anchor=(1.05, 0.5))
         ax_lat.grid(axis='y', linestyle='--', alpha=0.5)
         
