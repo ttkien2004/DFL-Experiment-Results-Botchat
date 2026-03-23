@@ -261,7 +261,10 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             ax_scat.set_title(f"Efficiency: Total {traffic_display} vs Final Accuracy")
             ax_scat.set_xlabel(f"Total {traffic_display}")
-            ax_scat.set_ylabel(f"Final {acc_metric.replace('_', ' ').title()}")
+            if 'acc' in acc_metric:
+                # acc_metric_display = acc_metric.replace('_', ' ').title()
+                acc_metric_display = "Average Accuracy"
+            ax_scat.set_ylabel(f"Final {acc_metric_display}")
             ax_scat.grid(True, linestyle='--')
             p_scat = f"efficiency_scatter_{current}.png"
             fig_scat.savefig(p_scat)
