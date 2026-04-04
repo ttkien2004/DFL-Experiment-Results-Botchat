@@ -507,7 +507,9 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
             'clean_acc': 'Clean Accuracy',
             'asr': 'Attack Success Rate (ASR)',
             'consensus_error': 'Consensus Error',
-            'comm_traffic_mb': 'Communication Traffic (MB)'
+            'comm_traffic_mb': 'Communication Traffic (MB)',
+            'src_recall': 'Source Class Recall',
+            'tgt_precision': 'Target Class Precision',
         }
         # Nếu có trong mapping thì lấy tên đẹp, nếu không thì tự động viết hoa chữ cái đầu
         return mapping.get(metric_key.lower(), metric_key.replace('_', ' ').title())
@@ -840,6 +842,82 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
             fig_acc_bar.savefig(p_acc_bar)
             output_files.append(p_acc_bar)
             plt.close(fig_acc_bar)
+    # --- BƯỚC 7: BIỂU ĐỒ CỘT NHÓM (GROUPED BAR) CHO PRECISION & RECALL ---
+    if 'src_recall' in global_metrics and 'tgt_precision' in global_metrics:
+        # Kích thước rộng hơn để chứa các cặp cột thoải mái
+        fig_grp, ax_grp = plt.subplots(figsize=(12, 8)) 
+        
+        grp_labels = []
+        final_src = []
+        final_tgt = []
+        
+        for item in data_list:
+            df = item['df']
+            raw_label = str(item['label'])
+            
+            # Tên thuật toán đầy đủ hiển thị trên trục X (Ví dụ: BALANCE \n (\beta = 0.5))
+            # Ký hiệu \n giúp gập dòng phần Beta để tiết kiệm không gian ngang
+            formatted_label = re.sub(r'[\s_\-]+([0-9]+\.?[0-9]*)$', r'\n($\\beta = \1$)', raw_label)
+            
+            if 'src_recall' in df.columns and 'tgt_precision' in df.columns:
+                valid_src = df['src_recall'].dropna()
+                valid_tgt = df['tgt_precision'].dropna()
+                
+                if not valid_src.empty and not valid_tgt.empty:
+                    grp_labels.append(formatted_label)
+                    final_src.append(valid_src.iloc[-1])
+                    final_tgt.append(valid_tgt.iloc[-1])
+        
+        if grp_labels:
+            # Thuật toán tính toán vị trí của 2 cột cạnh nhau
+            x_positions = list(range(len(grp_labels)))
+            width = 0.35 # Chiều rộng của 1 cột
+            
+            x_src = [p - width/2 for p in x_positions] # Cột bên trái
+            x_tgt = [p + width/2 for p in x_positions] # Cột bên phải
+            
+            # Vẽ các cột với họa tiết phân biệt khi in trắng đen
+            bars_src = ax_grp.bar(
+                x_src, final_src, width, label='Source Class Recall', 
+                color='#1f77b4', edgecolor='black', hatch='//'
+            )
+            bars_tgt = ax_grp.bar(
+                x_tgt, final_tgt, width, label='Target Class Precision', 
+                color='#ff7f0e', edgecolor='black', hatch='\\\\'
+            )
+            
+            ax_grp.set_title(f"Target Class Precision vs Source Class Recall - {current}")
+            ax_grp.set_ylabel("Score (0.0 - 1.0)")
+            
+            # Gán tên thuật toán (Krum, FedAvg, BALANCE...) làm nhãn trực tiếp trên trục X
+            ax_grp.set_xticks(x_positions)
+            ax_grp.set_xticklabels(grp_labels, rotation=0, ha='center', fontsize=11, fontweight='bold')
+            
+            # Bảng chú giải riêng ở bên cạnh
+            ax_grp.legend(title="Metrics", loc='center left', bbox_to_anchor=(1.05, 0.5))
+            ax_grp.grid(axis='y', linestyle='--', alpha=0.7)
+            
+            # Vòng lặp dán nhãn % lên đỉnh mỗi cột
+            for bars in [bars_src, bars_tgt]:
+                for bar in bars:
+                    height = bar.get_height()
+                    if height > 0:
+                        ax_grp.text(
+                            bar.get_x() + bar.get_width() / 2, 
+                            height + 0.01, 
+                            f"{height:.2%}", 
+                            ha='center', va='bottom', fontweight='bold', color='black', fontsize=9
+                        )
+            
+            # Mở rộng trục Y để tránh đụng chữ
+            max_val = max(max(final_src), max(final_tgt)) if final_src and final_tgt else 1.0
+            ax_grp.set_ylim(0, max_val * 1.15)
+            
+            plt.tight_layout()
+            p_grp = f"grouped_bar_precision_recall_{current}.png"
+            fig_grp.savefig(p_grp)
+            output_files.append(p_grp)
+            plt.close(fig_grp)
 
     # --- BƯỚC 7: GỬI TẤT CẢ ẢNH VÀ CSV ĐỘNG ---
     for p in output_files:
