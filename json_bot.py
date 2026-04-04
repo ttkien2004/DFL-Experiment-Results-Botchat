@@ -847,15 +847,19 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Kích thước rộng hơn để chứa các cặp cột thoải mái
         fig_grp, ax_grp = plt.subplots(figsize=(12, 8)) 
         
-        grp_labels = []
-        final_src = []
-        final_tgt = []
+        extracted_data = []
         
         for item in data_list:
             df = item['df']
             raw_label = str(item['label'])
             
-            # Tên thuật toán đầy đủ hiển thị trên trục X (Ví dụ: BALANCE \n (\beta = 0.5))
+            # --- ĐỔI TÊN THEO YÊU CẦU ---
+            # Đổi Proposed (hoặc BALANCE nếu có) thành COBRA-DFL
+            raw_label = raw_label.replace('Proposed', 'COBRA-DFL').replace('BALANCE', 'COBRA-DFL')
+            # Đổi TRIMMED_MEAN thành TRIMMED MEAN (Bỏ dấu gạch dưới)
+            raw_label = raw_label.replace('TRIMMED_MEAN', 'TRIMMED MEAN')
+            
+            # Tên thuật toán đầy đủ hiển thị trên trục X (Ví dụ: COBRA-DFL \n (\beta = 0.5))
             # Ký hiệu \n giúp gập dòng phần Beta để tiết kiệm không gian ngang
             formatted_label = re.sub(r'[\s_\-]+([0-9]+\.?[0-9]*)$', r'\n($\\beta = \1$)', raw_label)
             
@@ -864,11 +868,26 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 valid_tgt = df['tgt_precision'].dropna()
                 
                 if not valid_src.empty and not valid_tgt.empty:
-                    grp_labels.append(formatted_label)
-                    final_src.append(valid_src.iloc[-1])
-                    final_tgt.append(valid_tgt.iloc[-1])
+                    extracted_data.append({
+                        'label': formatted_label,
+                        'src_val': valid_src.iloc[-1],
+                        'tgt_val': valid_tgt.iloc[-1]
+                    })
         
-        if grp_labels:
+        if extracted_data:
+            # --- SẮP XẾP LẠI: ÉP COBRA-DFL XUỐNG CUỐI CÙNG ---
+            def custom_sort(x):
+                # Nếu tên chứa COBRA-DFL thì gán độ ưu tiên là 1 (đẩy xuống cuối)
+                # Các thuật toán khác gán là 0 (nằm ở đầu và xếp theo ABC)
+                is_cobra = 1 if 'COBRA-DFL' in x['label'] else 0
+                return (is_cobra, x['label'])
+            
+            extracted_data.sort(key=custom_sort)
+            
+            grp_labels = [d['label'] for d in extracted_data]
+            final_src = [d['src_val'] for d in extracted_data]
+            final_tgt = [d['tgt_val'] for d in extracted_data]
+            
             # Thuật toán tính toán vị trí của 2 cột cạnh nhau
             x_positions = list(range(len(grp_labels)))
             width = 0.35 # Chiều rộng của 1 cột
@@ -889,7 +908,7 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ax_grp.set_title(f"Target Class Precision vs Source Class Recall - {current}")
             ax_grp.set_ylabel("Score (0.0 - 1.0)")
             
-            # Gán tên thuật toán (Krum, FedAvg, BALANCE...) làm nhãn trực tiếp trên trục X
+            # Gán tên thuật toán làm nhãn trực tiếp trên trục X
             ax_grp.set_xticks(x_positions)
             ax_grp.set_xticklabels(grp_labels, rotation=0, ha='center', fontsize=11, fontweight='bold')
             
