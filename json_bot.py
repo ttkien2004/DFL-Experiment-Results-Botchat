@@ -479,6 +479,489 @@ async def delete_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
 #                 caption=f"✅ File tổng hợp {len(metrics_cols)} chỉ số động!"
 #             )
 #         os.remove(summary_csv)
+# async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
+#     user_id = update.effective_user.id
+#     current = user_sessions.get(user_id)
+#     if not current: return
+
+#     folder_path = os.path.join(BASE_DATA_DIR, current)
+#     if not os.path.exists(folder_path): return
+
+#     files = [f for f in os.listdir(folder_path) if f.endswith('.json')]
+#     if not files:
+#         await update.message.reply_text(f"📂 `{current}` trống. Hãy upload file JSON.")
+#         return
+
+#     await update.message.reply_text(f"📊 Đang quét động (Dynamic Scan) {len(files)} file JSON...")
+
+#     target_rounds_mapping = {19: 20, 39: 40, 59: 60, 79: 80, 99: 100}
+    
+#     data_list = [] 
+#     summary_records = []
+#     global_metrics = set()
+
+#     # --- HÀM HỖ TRỢ: CHUẨN HÓA TÊN HIỂN THỊ TRÊN BIỂU ĐỒ ---
+#     def format_metric_name(metric_key):
+#         mapping = {
+#             'avg_acc': 'Average Accuracy',
+#             'clean_acc': 'Clean Accuracy',
+#             'asr': 'Attack Success Rate (ASR)',
+#             'consensus_error': 'Consensus Error',
+#             'comm_traffic_mb': 'Communication Traffic (MB)',
+#             'src_recall': 'Source Class Recall',
+#             'tgt_precision': 'Target Class Precision',
+#         }
+#         # Nếu có trong mapping thì lấy tên đẹp, nếu không thì tự động viết hoa chữ cái đầu
+#         return mapping.get(metric_key.lower(), metric_key.replace('_', ' ').title())
+
+#     import re
+
+#     # --- BƯỚC 1: ĐỌC VÀ PHÁT HIỆN METRICS ĐỘNG ---
+#     for file in files:
+#         file_path = os.path.join(folder_path, file)
+#         try:
+#             with open(file_path, 'r', encoding='utf-8') as f:
+#                 data = json.load(f)
+            
+#             algo_name = data.get('algo_name', [file.replace('.json', '')])[0]
+#             rounds = data.get('rounds', [])
+            
+#             if not rounds: continue
+                
+#             df_dict = {'Round': rounds}
+#             file_metrics = []
+#             avg_latency = None
+            
+#             for key, val in data.items():
+#                 if key == 'rounds': continue
+                
+#                 # --- XỬ LÝ RIÊNG BIỂU ĐỒ LATENCY BREAKDOWN ---
+#                 if key == 'latency_breakdown':
+#                     if isinstance(val, list) and len(val) > 0 and isinstance(val[0], dict):
+#                         avg_latency = {}
+#                         lat_keys = val[0].keys()
+#                         for k in lat_keys:
+#                             avg_latency[k] = sum(item.get(k, 0) for item in val) / len(val)
+#                     continue
+
+#                 if isinstance(val, list) and len(val) == len(rounds) and len(val) > 0:
+#                     if isinstance(val[0], (int, float)):
+#                         df_dict[key] = val
+#                         global_metrics.add(key)
+#                         file_metrics.append(key)
+            
+#             df = pd.DataFrame(df_dict)
+#             data_list.append({'label': algo_name, 'df': df, 'avg_latency': avg_latency})
+            
+#             for actual_r, display_r in target_rounds_mapping.items():
+#                 row = df[df['Round'] == actual_r]
+#                 if not row.empty:
+#                     record = {
+#                         'Algorithm': algo_name,
+#                         'Round (Display)': display_r,
+#                         'Round (Actual index)': actual_r
+#                     }
+#                     for metric in file_metrics:
+#                         val = row[metric].values[0]
+#                         record[metric] = round(val, 4) if not pd.isna(val) else None
+#                     summary_records.append(record)
+                    
+#         except Exception as e:
+#             print(f"Error {file}: {e}")
+
+#     if not data_list:
+#         await update.message.reply_text("❌ Không trích xuất được dữ liệu hợp lệ.")
+#         return
+
+#     data_list.sort(key=lambda x: str(x['label']))
+#     output_files = []
+
+#     # --- BƯỚC 2: VẼ ĐỘNG TỪNG METRIC ---
+#     for metric in global_metrics:
+#         fig, ax = plt.subplots(figsize=(10, 6))
+#         has_valid_data = False
+        
+#         for item in data_list:
+#             df = item['df']
+#             label = item['label']
+            
+#             if metric in df.columns:
+#                 metric_data = df[metric]
+#                 if not metric_data.isna().all():
+#                     has_valid_data = True
+#                     linestyle = '--' if 'error' in metric.lower() or 'loss' in metric.lower() else '-'
+#                     marker = 's' if 'asr' in metric.lower() else 'o'
+#                     ax.plot(df['Round'], metric_data, marker=marker, markersize=4, linestyle=linestyle, label=f"{label}")
+
+#         if has_valid_data:
+#             metric_display_name = format_metric_name(metric) # Gọi hàm tên đẹp
+#             ax.set_title(f"{metric_display_name} Comparison - {current}")
+#             ax.set_xlabel("Rounds")
+#             ax.set_ylabel(metric_display_name)
+#             ax.legend()
+#             ax.grid(True)
+#             p_metric = f"metric_{metric}_{current}.png"
+#             fig.savefig(p_metric)
+#             output_files.append(p_metric)
+#         plt.close(fig)
+
+#     # --- TÌM CHỈ SỐ ACCURACY VÀ TRAFFIC ---
+#     acc_metric = next((m for m in global_metrics if 'acc' in m.lower()), None)
+#     traffic_metric = next((m for m in global_metrics if 'traffic' in m.lower() or 'comm_traffic_mb' in m.lower()), None)
+
+#     # --- BƯỚC 3: CONVERGENCE BAR CHART ĐỘNG ---
+#     if acc_metric:
+#         CONV_THRESHOLD = 0.75  
+#         convergence_data = []
+#         for item in data_list:
+#             df = item['df']
+#             if acc_metric in df.columns:
+#                 reached = df[df[acc_metric] >= CONV_THRESHOLD]
+#                 val = reached['Round'].min() if not reached.empty else df['Round'].max()
+#                 convergence_data.append((str(item['label']), val))
+
+#         if convergence_data:
+#             fig_bar, ax_bar = plt.subplots(figsize=(10, 6))
+#             lbls, rnds = zip(*convergence_data)
+#             bars = ax_bar.bar(lbls, rnds, color='darkorange')
+#             acc_metric_display = format_metric_name(acc_metric)
+#             ax_bar.set_title(f"Convergence Speed (To {CONV_THRESHOLD*100}% on {acc_metric_display})")
+#             ax_bar.bar_label(bars)
+#             p_conv = f"conv_{current}.png"; fig_bar.savefig(p_conv); output_files.append(p_conv)
+#             plt.close(fig_bar)
+
+#     # --- BƯỚC 4: BIỂU ĐỒ BĂNG THÔNG (CUMULATIVE & SCATTER) ---
+#     if traffic_metric and acc_metric:
+#         fig_cum, ax_cum = plt.subplots(figsize=(10, 6))
+#         fig_scat, ax_scat = plt.subplots(figsize=(10, 6))
+        
+#         has_traffic_data = False
+#         scatter_points = []
+
+#         for item in data_list:
+#             df = item['df']
+#             label = item['label']
+            
+#             if traffic_metric in df.columns and acc_metric in df.columns:
+#                 has_traffic_data = True
+#                 cum_traffic = df[traffic_metric].cumsum()
+                
+#                 ax_cum.plot(df['Round'], cum_traffic, marker='', linestyle='-', linewidth=2, label=f"{label}")
+                
+#                 total_traffic = cum_traffic.iloc[-1]
+#                 final_acc = df[acc_metric].iloc[-1]
+#                 scatter_points.append((total_traffic, final_acc, label))
+
+#         if has_traffic_data:
+#             traffic_display = format_metric_name(traffic_metric)
+#             ax_cum.set_title(f"Cumulative {traffic_display} over Rounds - {current}")
+#             ax_cum.set_xlabel("Rounds")
+#             ax_cum.set_ylabel(f"Cumulative {traffic_display}")
+#             ax_cum.legend()
+#             ax_cum.grid(True)
+#             p_cum = f"cumulative_{traffic_metric}_{current}.png"
+#             fig_cum.savefig(p_cum)
+#             output_files.append(p_cum)
+            
+#             for t_traf, f_acc, lbl in scatter_points:
+#                 ax_scat.scatter(t_traf, f_acc, s=150, label=lbl, alpha=0.8, edgecolors='black')
+#                 ax_scat.annotate(lbl, (t_traf, f_acc), xytext=(8, 8), textcoords='offset points', fontsize=10)
+            
+#             acc_metric_display = format_metric_name(acc_metric)
+#             ax_scat.set_title(f"Efficiency: Total {traffic_display} vs Final Accuracy")
+#             ax_scat.set_xlabel(f"Total {traffic_display}")
+#             ax_scat.set_ylabel(f"Final {acc_metric_display}")
+#             ax_scat.grid(True, linestyle='--')
+#             p_scat = f"efficiency_scatter_{current}.png"
+#             fig_scat.savefig(p_scat)
+#             output_files.append(p_scat)
+
+#         plt.close(fig_cum)
+#         plt.close(fig_scat)
+
+#     # --- BƯỚC 5: BIỂU ĐỒ CỘT CHỒNG LATENCY BREAKDOWN ---
+#     has_latency = any(item.get('avg_latency') for item in data_list)
+#     if has_latency:
+#         fig_lat, ax_lat = plt.subplots(figsize=(10, 8))
+        
+#         lat_items = [item for item in data_list if item.get('avg_latency')]
+        
+#         # --- 1. CHỈ GIỮ LẠI KÝ HIỆU BETA DƯỚI TRỤC X ---
+#         labels = []
+#         for item in lat_items:
+#             raw_label = str(item['label'])
+#             match = re.search(r'[\s_\-]+([0-9]+\.?[0-9]*)$', raw_label)
+#             if match:
+#                 formatted_label = f"$\\beta = {match.group(1)}$" # Bỏ tên thuật toán, chỉ lấy Beta
+#             else:
+#                 formatted_label = raw_label 
+#             labels.append(formatted_label)
+        
+#         # --- 2. LỌC BỎ TIME_ELECTION & CÁC THÀNH PHẦN QUÁ NHỎ ---
+#         raw_keys = set()
+#         for item in lat_items:
+#             for k, v in item['avg_latency'].items():
+#                 if k != 'time_election' and v > 0.001: # Loại trừ dứt điểm Election
+#                     raw_keys.add(k)
+                    
+#         desired_order = [
+#             'time_clustering', 
+#             'time_training', 
+#             'time_gossip', 
+#             'time_aggregation', 
+#             'time_consensus'
+#         ]
+        
+#         all_keys = []
+#         for k in desired_order:
+#             if k in raw_keys:
+#                 all_keys.append(k)
+#         for k in raw_keys:
+#             if k not in desired_order:
+#                 all_keys.append(k)
+        
+#         totals = [sum(item['avg_latency'].get(k, 0) for k in all_keys) for item in lat_items]
+#         bottom = [0] * len(labels)
+        
+#         contrast_colors = ['#1f77b4', '#ffbb78', '#9467bd', '#d62728', '#2ca02c', '#e377c2', '#8c564b']
+#         patterns = ['//', '..', 'xx', '\\\\', 'OO', '--', '++']
+#         bar_width = 0.55 
+        
+#         for idx, key in enumerate(all_keys):
+#             values = [item['avg_latency'].get(key, 0) for item in lat_items]
+#             display_name = key.replace('time_', '').replace('_', ' ').title()
+            
+#             c = contrast_colors[idx % len(contrast_colors)]
+#             h = patterns[idx % len(patterns)]
+            
+#             bars = ax_lat.bar(
+#                 labels, values, width=bar_width, bottom=bottom, label=display_name, 
+#                 color=c, edgecolor='#333333', hatch=h
+#             )
+            
+#             for i, (bar, val, total) in enumerate(zip(bars, values, totals)):
+#                 if total > 0 and val > 0:
+#                     pct = (val / total) * 100
+#                     if pct > 3:
+#                         y_center = bottom[i] + (val / 2)
+#                         ax_lat.text(
+#                             bar.get_x() + bar.get_width() / 2, 
+#                             y_center, 
+#                             f"{val:.2f}s\n({pct:.1f}%)", 
+#                             ha='center', va='center', color='black', fontsize=9, fontweight='bold',
+#                             bbox=dict(facecolor='white', alpha=0.85, edgecolor='none', pad=1) 
+#                         )
+            
+#             bottom = [b + v for b, v in zip(bottom, values)]
+            
+#         ax_lat.set_title(f"Average Latency Breakdown per Round - {current}")
+#         ax_lat.set_ylabel("Average Time (seconds)")
+        
+#         if totals:
+#             ax_lat.set_ylim(0, max(totals) * 1.2)
+            
+#         # Trục X giờ chỉ còn chứa các ký hiệu Toán học nên có thể để thẳng
+#         ax_lat.set_xticks(range(len(labels)))
+#         ax_lat.set_xticklabels(labels, rotation=0, ha='center', fontsize=12)
+        
+#         ax_lat.legend(title="Time Components", loc='center left', bbox_to_anchor=(1.05, 0.5))
+#         ax_lat.grid(axis='y', linestyle='--', alpha=0.5)
+        
+#         for i in range(len(labels)):
+#             if totals[i] > 0:
+#                 ax_lat.text(
+#                     i, totals[i] + (max(totals) * 0.02), 
+#                     f"Total:\n{totals[i]:.2f}s", 
+#                     ha='center', va='bottom', fontweight='bold', color='black'
+#                 )
+
+#         plt.tight_layout()
+#         p_lat = f"latency_breakdown_{current}.png"
+#         fig_lat.savefig(p_lat)
+#         output_files.append(p_lat)
+#         plt.close(fig_lat)
+
+#     # --- BƯỚC 6: BIỂU ĐỒ CỘT FINAL ACCURACY ---
+#     if acc_metric:
+#         fig_acc_bar, ax_acc_bar = plt.subplots(figsize=(10, 8))
+#         acc_labels = []
+#         final_accs = []
+        
+#         for item in data_list:
+#             df = item['df']
+#             raw_label = str(item['label'])
+            
+#             # Giữ lại Tên Thuật Toán + Beta cho Legend (Vd: COBRA-DFL (\beta = 0.5))
+#             formatted_label = re.sub(r'[\s_\-]+([0-9]+\.?[0-9]*)$', r' ($\\beta = \1$)', raw_label)
+            
+#             if acc_metric in df.columns:
+#                 valid_acc_data = df[acc_metric].dropna()
+#                 if not valid_acc_data.empty:
+#                     final_acc = valid_acc_data.iloc[-1]
+#                     acc_labels.append(formatted_label)
+#                     final_accs.append(final_acc)
+        
+#         if final_accs:
+#             bar_colors = ['#8dd3c7', '#ffffb3', '#bebada', '#fb8072', '#80b1d3', '#fdb462', '#b3de69']
+#             patterns = ['//', '..', 'xx', '\\\\', 'OO', '--', '++']
+            
+#             bars_acc_list = []
+            
+#             for i, (lbl, val) in enumerate(zip(acc_labels, final_accs)):
+#                 c = bar_colors[i % len(bar_colors)]
+#                 h = patterns[i % len(patterns)]
+                
+#                 bar = ax_acc_bar.bar(i, val, color=c, edgecolor='dimgray', hatch=h, label=lbl)
+#                 bars_acc_list.append(bar[0])
+            
+#             # Sử dụng hàm format tên đẹp cho Tiêu đề
+#             metric_display_name = format_metric_name(acc_metric)
+#             ax_acc_bar.set_title(f"Final {metric_display_name} Comparison - {current}")
+#             ax_acc_bar.set_ylabel(metric_display_name)
+            
+#             # Tắt hiển thị nhãn trục X và bật Legend
+#             ax_acc_bar.set_xticks([]) 
+#             ax_acc_bar.legend(title="Algorithms", loc='center left', bbox_to_anchor=(1.05, 0.5))
+            
+#             for bar in bars_acc_list:
+#                 height = bar.get_height()
+#                 ax_acc_bar.text(
+#                     bar.get_x() + bar.get_width() / 2, 
+#                     height + 0.01, 
+#                     f"{height:.2%}", 
+#                     ha='center', va='bottom', fontweight='bold', color='black'
+#                 )
+            
+#             max_val = max(final_accs)
+#             ax_acc_bar.set_ylim(0, max_val * 1.15)
+#             ax_acc_bar.grid(axis='y', linestyle='--', alpha=0.7)
+            
+#             plt.tight_layout()
+            
+#             p_acc_bar = f"bar_final_{acc_metric}_{current}.png"
+#             fig_acc_bar.savefig(p_acc_bar)
+#             output_files.append(p_acc_bar)
+#             plt.close(fig_acc_bar)
+#     # --- BƯỚC 7: BIỂU ĐỒ CỘT NHÓM (GROUPED BAR) CHO PRECISION & RECALL ---
+#     if 'src_recall' in global_metrics and 'tgt_precision' in global_metrics:
+#         # Kích thước rộng hơn để chứa các cặp cột thoải mái
+#         fig_grp, ax_grp = plt.subplots(figsize=(12, 8)) 
+        
+#         extracted_data = []
+        
+#         for item in data_list:
+#             df = item['df']
+#             raw_label = str(item['label'])
+            
+#             # --- ĐỔI TÊN THEO YÊU CẦU ---
+#             # Đổi Proposed (hoặc BALANCE nếu có) thành COBRA-DFL
+#             raw_label = raw_label.replace('Proposed', 'COBRA-DFL').replace('BALANCE', 'COBRA-DFL')
+#             # Đổi TRIMMED_MEAN thành TRIMMED MEAN (Bỏ dấu gạch dưới)
+#             raw_label = raw_label.replace('TRIMMED_MEAN', 'TRIMMED MEAN')
+            
+#             # Tên thuật toán đầy đủ hiển thị trên trục X (Ví dụ: COBRA-DFL \n (\beta = 0.5))
+#             # Ký hiệu \n giúp gập dòng phần Beta để tiết kiệm không gian ngang
+#             formatted_label = re.sub(r'[\s_\-]+([0-9]+\.?[0-9]*)$', r'\n($\\beta = \1$)', raw_label)
+            
+#             if 'src_recall' in df.columns and 'tgt_precision' in df.columns:
+#                 valid_src = df['src_recall'].dropna()
+#                 valid_tgt = df['tgt_precision'].dropna()
+                
+#                 if not valid_src.empty and not valid_tgt.empty:
+#                     extracted_data.append({
+#                         'label': formatted_label,
+#                         'src_val': valid_src.iloc[-1],
+#                         'tgt_val': valid_tgt.iloc[-1]
+#                     })
+        
+#         if extracted_data:
+#             # --- SẮP XẾP LẠI: ÉP COBRA-DFL XUỐNG CUỐI CÙNG ---
+#             def custom_sort(x):
+#                 # Nếu tên chứa COBRA-DFL thì gán độ ưu tiên là 1 (đẩy xuống cuối)
+#                 # Các thuật toán khác gán là 0 (nằm ở đầu và xếp theo ABC)
+#                 is_cobra = 1 if 'COBRA-DFL' in x['label'] else 0
+#                 return (is_cobra, x['label'])
+            
+#             extracted_data.sort(key=custom_sort)
+            
+#             grp_labels = [d['label'] for d in extracted_data]
+#             final_src = [d['src_val'] for d in extracted_data]
+#             final_tgt = [d['tgt_val'] for d in extracted_data]
+            
+#             # Thuật toán tính toán vị trí của 2 cột cạnh nhau
+#             x_positions = list(range(len(grp_labels)))
+#             width = 0.35 # Chiều rộng của 1 cột
+            
+#             x_src = [p - width/2 for p in x_positions] # Cột bên trái
+#             x_tgt = [p + width/2 for p in x_positions] # Cột bên phải
+            
+#             # Vẽ các cột với họa tiết phân biệt khi in trắng đen
+#             bars_src = ax_grp.bar(
+#                 x_src, final_src, width, label='Source Class Recall', 
+#                 color='#1f77b4', edgecolor='black', hatch='//'
+#             )
+#             bars_tgt = ax_grp.bar(
+#                 x_tgt, final_tgt, width, label='Target Class Precision', 
+#                 color='#ff7f0e', edgecolor='black', hatch='\\\\'
+#             )
+            
+#             ax_grp.set_title(f"Target Class Precision vs Source Class Recall - {current}")
+#             ax_grp.set_ylabel("Score (0.0 - 1.0)")
+            
+#             # Gán tên thuật toán làm nhãn trực tiếp trên trục X
+#             ax_grp.set_xticks(x_positions)
+#             ax_grp.set_xticklabels(grp_labels, rotation=0, ha='center', fontsize=11, fontweight='bold')
+            
+#             # Bảng chú giải riêng ở bên cạnh
+#             ax_grp.legend(title="Metrics", loc='center left', bbox_to_anchor=(1.05, 0.5))
+#             ax_grp.grid(axis='y', linestyle='--', alpha=0.7)
+            
+#             # Vòng lặp dán nhãn % lên đỉnh mỗi cột
+#             for bars in [bars_src, bars_tgt]:
+#                 for bar in bars:
+#                     height = bar.get_height()
+#                     if height > 0:
+#                         ax_grp.text(
+#                             bar.get_x() + bar.get_width() / 2, 
+#                             height + 0.01, 
+#                             f"{height:.2%}", 
+#                             ha='center', va='bottom', fontweight='bold', color='black', fontsize=9
+#                         )
+            
+#             # Mở rộng trục Y để tránh đụng chữ
+#             max_val = max(max(final_src), max(final_tgt)) if final_src and final_tgt else 1.0
+#             ax_grp.set_ylim(0, max_val * 1.15)
+            
+#             plt.tight_layout()
+#             p_grp = f"grouped_bar_precision_recall_{current}.png"
+#             fig_grp.savefig(p_grp)
+#             output_files.append(p_grp)
+#             plt.close(fig_grp)
+
+#     # --- BƯỚC 7: GỬI TẤT CẢ ẢNH VÀ CSV ĐỘNG ---
+#     for p in output_files:
+#         with open(p, 'rb') as f: await update.message.reply_photo(f)
+#         os.remove(p)
+
+#     if summary_records:
+#         summary_df = pd.DataFrame(summary_records)
+#         summary_df = summary_df.sort_values(by=['Algorithm', 'Round (Actual index)'])
+        
+#         cols = ['Algorithm', 'Round (Display)', 'Round (Actual index)']
+#         metrics_cols = [c for c in summary_df.columns if c not in cols]
+#         summary_df = summary_df[cols + sorted(metrics_cols)]
+        
+#         summary_csv = f"Dynamic_Summary_{current}.csv"
+#         summary_df.to_csv(summary_csv, index=False)
+        
+#         with open(summary_csv, 'rb') as f:
+#             await update.message.reply_document(
+#                 document=f, 
+#                 filename=f"Metrics_Summary_Rounds_{current}.csv", 
+#                 caption=f"✅ File tổng hợp {len(metrics_cols)} chỉ số động!"
+#             )
+#         os.remove(summary_csv)
+
 async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     current = user_sessions.get(user_id)
@@ -510,6 +993,11 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
             'comm_traffic_mb': 'Communication Traffic (MB)',
             'src_recall': 'Source Class Recall',
             'tgt_precision': 'Target Class Precision',
+            'f1': 'F1 Score',
+            'auc': 'AUC Score',
+            'execution_time': 'Execution Time (seconds)',
+            'avg_loss': 'Average Loss',
+            'max_ter': 'Max Target Error Rate (TER)'
         }
         # Nếu có trong mapping thì lấy tên đẹp, nếu không thì tự động viết hoa chữ cái đầu
         return mapping.get(metric_key.lower(), metric_key.replace('_', ' ').title())
@@ -523,7 +1011,14 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
             with open(file_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
             
-            algo_name = data.get('algo_name', [file.replace('.json', '')])[0]
+            # Xử lý thông minh: Nếu JSON không có algo_name (như file Biscotti), tự động cắt từ tên file
+            if 'algo_name' in data and isinstance(data['algo_name'], list) and len(data['algo_name']) > 0:
+                algo_name = str(data['algo_name'][0])
+            elif 'algo_name' in data and isinstance(data['algo_name'], str):
+                algo_name = data['algo_name']
+            else:
+                algo_name = file.replace('.json', '').split('_')[-1].upper() # VD: history_..._BISCOTTI -> BISCOTTI
+                
             rounds = data.get('rounds', [])
             
             if not rounds: continue
@@ -541,6 +1036,7 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         avg_latency = {}
                         lat_keys = val[0].keys()
                         for k in lat_keys:
+                            # Cộng tổng time của key đó qua các vòng rồi chia đều cho tổng số vòng
                             avg_latency[k] = sum(item.get(k, 0) for item in val) / len(val)
                     continue
 
@@ -594,7 +1090,7 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     ax.plot(df['Round'], metric_data, marker=marker, markersize=4, linestyle=linestyle, label=f"{label}")
 
         if has_valid_data:
-            metric_display_name = format_metric_name(metric) # Gọi hàm tên đẹp
+            metric_display_name = format_metric_name(metric)
             ax.set_title(f"{metric_display_name} Comparison - {current}")
             ax.set_xlabel("Rounds")
             ax.set_ylabel(metric_display_name)
@@ -605,7 +1101,7 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
             output_files.append(p_metric)
         plt.close(fig)
 
-    # --- TÌM CHỈ SỐ ACCURACY VÀ TRAFFIC ---
+    # --- TÌM CHỈ SỐ ACCURACY VÀ TRAFFIC CHO CÁC BIỂU ĐỒ ĐẶC THÙ ---
     acc_metric = next((m for m in global_metrics if 'acc' in m.lower()), None)
     traffic_metric = next((m for m in global_metrics if 'traffic' in m.lower() or 'comm_traffic_mb' in m.lower()), None)
 
@@ -646,8 +1142,10 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 has_traffic_data = True
                 cum_traffic = df[traffic_metric].cumsum()
                 
+                # Line Chart (Cumulative)
                 ax_cum.plot(df['Round'], cum_traffic, marker='', linestyle='-', linewidth=2, label=f"{label}")
                 
+                # Scatter Plot (Efficiency)
                 total_traffic = cum_traffic.iloc[-1]
                 final_acc = df[acc_metric].iloc[-1]
                 scatter_points.append((total_traffic, final_acc, label))
@@ -692,7 +1190,7 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
             raw_label = str(item['label'])
             match = re.search(r'[\s_\-]+([0-9]+\.?[0-9]*)$', raw_label)
             if match:
-                formatted_label = f"$\\beta = {match.group(1)}$" # Bỏ tên thuật toán, chỉ lấy Beta
+                formatted_label = f"$\\beta = {match.group(1)}$" 
             else:
                 formatted_label = raw_label 
             labels.append(formatted_label)
@@ -701,7 +1199,7 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
         raw_keys = set()
         for item in lat_items:
             for k, v in item['avg_latency'].items():
-                if k != 'time_election' and v > 0.001: # Loại trừ dứt điểm Election
+                if k != 'time_election' and v > 0.001: 
                     raw_keys.add(k)
                     
         desired_order = [
@@ -760,10 +1258,8 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if totals:
             ax_lat.set_ylim(0, max(totals) * 1.2)
             
-        # Trục X giờ chỉ còn chứa các ký hiệu Toán học nên có thể để thẳng
         ax_lat.set_xticks(range(len(labels)))
         ax_lat.set_xticklabels(labels, rotation=0, ha='center', fontsize=12)
-        
         ax_lat.legend(title="Time Components", loc='center left', bbox_to_anchor=(1.05, 0.5))
         ax_lat.grid(axis='y', linestyle='--', alpha=0.5)
         
@@ -791,14 +1287,18 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
             df = item['df']
             raw_label = str(item['label'])
             
-            # Giữ lại Tên Thuật Toán + Beta cho Legend (Vd: COBRA-DFL (\beta = 0.5))
-            formatted_label = re.sub(r'[\s_\-]+([0-9]+\.?[0-9]*)$', r' ($\\beta = \1$)', raw_label)
+            # --- TỰ ĐỘNG ĐỊNH DẠNG KÝ HIỆU BETA (Chỉ giữ lại Beta) ---
+            match = re.search(r'[\s_\-]+([0-9]+\.?[0-9]*)$', raw_label)
+            if match:
+                label = f"$\\beta = {match.group(1)}$"
+            else:
+                label = raw_label
             
             if acc_metric in df.columns:
                 valid_acc_data = df[acc_metric].dropna()
                 if not valid_acc_data.empty:
                     final_acc = valid_acc_data.iloc[-1]
-                    acc_labels.append(formatted_label)
+                    acc_labels.append(label)
                     final_accs.append(final_acc)
         
         if final_accs:
@@ -811,24 +1311,22 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 c = bar_colors[i % len(bar_colors)]
                 h = patterns[i % len(patterns)]
                 
-                bar = ax_acc_bar.bar(i, val, color=c, edgecolor='dimgray', hatch=h, label=lbl)
+                bar = ax_acc_bar.bar(lbl, val, color=c, edgecolor='dimgray', hatch=h)
                 bars_acc_list.append(bar[0])
             
-            # Sử dụng hàm format tên đẹp cho Tiêu đề
             metric_display_name = format_metric_name(acc_metric)
             ax_acc_bar.set_title(f"Final {metric_display_name} Comparison - {current}")
             ax_acc_bar.set_ylabel(metric_display_name)
             
-            # Tắt hiển thị nhãn trục X và bật Legend
-            ax_acc_bar.set_xticks([]) 
-            ax_acc_bar.legend(title="Algorithms", loc='center left', bbox_to_anchor=(1.05, 0.5))
+            ax_acc_bar.set_xticks(range(len(acc_labels)))
+            ax_acc_bar.set_xticklabels(acc_labels, rotation=0, ha='center', fontsize=12) 
             
             for bar in bars_acc_list:
                 height = bar.get_height()
                 ax_acc_bar.text(
                     bar.get_x() + bar.get_width() / 2, 
                     height + 0.01, 
-                    f"{height:.2%}", 
+                    f"{height:.2%}",
                     ha='center', va='bottom', fontweight='bold', color='black'
                 )
             
@@ -837,30 +1335,23 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ax_acc_bar.grid(axis='y', linestyle='--', alpha=0.7)
             
             plt.tight_layout()
-            
             p_acc_bar = f"bar_final_{acc_metric}_{current}.png"
             fig_acc_bar.savefig(p_acc_bar)
             output_files.append(p_acc_bar)
             plt.close(fig_acc_bar)
+
     # --- BƯỚC 7: BIỂU ĐỒ CỘT NHÓM (GROUPED BAR) CHO PRECISION & RECALL ---
     if 'src_recall' in global_metrics and 'tgt_precision' in global_metrics:
-        # Kích thước rộng hơn để chứa các cặp cột thoải mái
         fig_grp, ax_grp = plt.subplots(figsize=(12, 8)) 
-        
         extracted_data = []
         
         for item in data_list:
             df = item['df']
             raw_label = str(item['label'])
             
-            # --- ĐỔI TÊN THEO YÊU CẦU ---
-            # Đổi Proposed (hoặc BALANCE nếu có) thành COBRA-DFL
             raw_label = raw_label.replace('Proposed', 'COBRA-DFL').replace('BALANCE', 'COBRA-DFL')
-            # Đổi TRIMMED_MEAN thành TRIMMED MEAN (Bỏ dấu gạch dưới)
             raw_label = raw_label.replace('TRIMMED_MEAN', 'TRIMMED MEAN')
             
-            # Tên thuật toán đầy đủ hiển thị trên trục X (Ví dụ: COBRA-DFL \n (\beta = 0.5))
-            # Ký hiệu \n giúp gập dòng phần Beta để tiết kiệm không gian ngang
             formatted_label = re.sub(r'[\s_\-]+([0-9]+\.?[0-9]*)$', r'\n($\\beta = \1$)', raw_label)
             
             if 'src_recall' in df.columns and 'tgt_precision' in df.columns:
@@ -875,10 +1366,7 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     })
         
         if extracted_data:
-            # --- SẮP XẾP LẠI: ÉP COBRA-DFL XUỐNG CUỐI CÙNG ---
             def custom_sort(x):
-                # Nếu tên chứa COBRA-DFL thì gán độ ưu tiên là 1 (đẩy xuống cuối)
-                # Các thuật toán khác gán là 0 (nằm ở đầu và xếp theo ABC)
                 is_cobra = 1 if 'COBRA-DFL' in x['label'] else 0
                 return (is_cobra, x['label'])
             
@@ -888,14 +1376,12 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
             final_src = [d['src_val'] for d in extracted_data]
             final_tgt = [d['tgt_val'] for d in extracted_data]
             
-            # Thuật toán tính toán vị trí của 2 cột cạnh nhau
             x_positions = list(range(len(grp_labels)))
-            width = 0.35 # Chiều rộng của 1 cột
+            width = 0.35 
             
-            x_src = [p - width/2 for p in x_positions] # Cột bên trái
-            x_tgt = [p + width/2 for p in x_positions] # Cột bên phải
+            x_src = [p - width/2 for p in x_positions] 
+            x_tgt = [p + width/2 for p in x_positions] 
             
-            # Vẽ các cột với họa tiết phân biệt khi in trắng đen
             bars_src = ax_grp.bar(
                 x_src, final_src, width, label='Source Class Recall', 
                 color='#1f77b4', edgecolor='black', hatch='//'
@@ -908,15 +1394,12 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ax_grp.set_title(f"Target Class Precision vs Source Class Recall - {current}")
             ax_grp.set_ylabel("Score (0.0 - 1.0)")
             
-            # Gán tên thuật toán làm nhãn trực tiếp trên trục X
             ax_grp.set_xticks(x_positions)
             ax_grp.set_xticklabels(grp_labels, rotation=0, ha='center', fontsize=11, fontweight='bold')
             
-            # Bảng chú giải riêng ở bên cạnh
             ax_grp.legend(title="Metrics", loc='center left', bbox_to_anchor=(1.05, 0.5))
             ax_grp.grid(axis='y', linestyle='--', alpha=0.7)
             
-            # Vòng lặp dán nhãn % lên đỉnh mỗi cột
             for bars in [bars_src, bars_tgt]:
                 for bar in bars:
                     height = bar.get_height()
@@ -928,7 +1411,6 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             ha='center', va='bottom', fontweight='bold', color='black', fontsize=9
                         )
             
-            # Mở rộng trục Y để tránh đụng chữ
             max_val = max(max(final_src), max(final_tgt)) if final_src and final_tgt else 1.0
             ax_grp.set_ylim(0, max_val * 1.15)
             
@@ -938,7 +1420,7 @@ async def export_charts(update: Update, context: ContextTypes.DEFAULT_TYPE):
             output_files.append(p_grp)
             plt.close(fig_grp)
 
-    # --- BƯỚC 7: GỬI TẤT CẢ ẢNH VÀ CSV ĐỘNG ---
+    # --- BƯỚC 8: GỬI TẤT CẢ ẢNH VÀ CSV ĐỘNG ---
     for p in output_files:
         with open(p, 'rb') as f: await update.message.reply_photo(f)
         os.remove(p)
