@@ -1,0 +1,1729 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>COBRA-DFL — Decentralized Federated Learning Simulator</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;600&display=swap');
+
+:root {
+  --bg: #020409;
+  --panel: rgba(6,12,24,0.85);
+  --border: rgba(0,200,255,0.15);
+  --neon-blue: #00c8ff;
+  --neon-purple: #a855f7;
+  --neon-green: #00ff88;
+  --neon-orange: #ff6b35;
+  --neon-red: #ff2244;
+  --neon-yellow: #ffd700;
+  --text: #c8e0f0;
+  --text-dim: rgba(200,224,240,0.5);
+  --cluster-a: #00c8ff;
+  --cluster-b: #a855f7;
+  --cluster-c: #00ff88;
+  --cluster-d: #ffd700;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 13px;
+  overflow: hidden;
+  height: 100vh;
+  width: 100vw;
+}
+
+/* Scanline overlay */
+body::before {
+  content:'';
+  position:fixed;
+  inset:0;
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+  pointer-events:none;
+  z-index:1000;
+}
+
+/* Grid bg */
+body::after {
+  content:'';
+  position:fixed;
+  inset:0;
+  background-image:
+    linear-gradient(rgba(0,200,255,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,200,255,0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events:none;
+  z-index:0;
+}
+
+#app {
+  position:relative;
+  z-index:1;
+  display:grid;
+  grid-template-rows: 48px 1fr 90px;
+  grid-template-columns: 1fr 280px;
+  gap:6px;
+  padding:6px;
+  height:100vh;
+  width:100vw;
+}
+
+/* ─── HEADER ─── */
+#header {
+  grid-column: 1/-1;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  padding:0 16px;
+  backdrop-filter: blur(10px);
+  border-radius:4px;
+}
+
+.logo {
+  font-family:'Orbitron',monospace;
+  font-size:16px;
+  font-weight:900;
+  color: var(--neon-blue);
+  text-shadow: 0 0 20px var(--neon-blue);
+  letter-spacing:4px;
+}
+.logo span { color: var(--neon-purple); }
+
+.header-center {
+  display:flex;
+  align-items:center;
+  gap:12px;
+}
+
+.phase-badge {
+  font-family:'Share Tech Mono',monospace;
+  font-size:11px;
+  color: var(--neon-green);
+  background: rgba(0,255,136,0.08);
+  border:1px solid rgba(0,255,136,0.3);
+  padding:3px 10px;
+  border-radius:2px;
+  letter-spacing:2px;
+}
+
+#round-display {
+  font-family:'Share Tech Mono',monospace;
+  font-size:11px;
+  color:var(--text-dim);
+}
+
+.controls {
+  display:flex;
+  gap:6px;
+  align-items:center;
+}
+
+.btn {
+  font-family:'Orbitron',monospace;
+  font-size:9px;
+  letter-spacing:1px;
+  padding:5px 12px;
+  border: 1px solid var(--neon-blue);
+  background: rgba(0,200,255,0.08);
+  color: var(--neon-blue);
+  cursor:pointer;
+  transition:all .15s;
+  border-radius:2px;
+}
+.btn:hover { background:rgba(0,200,255,0.2); box-shadow:0 0 10px rgba(0,200,255,0.3); }
+.btn.active { background:rgba(0,200,255,0.25); box-shadow:0 0 15px rgba(0,200,255,0.4); }
+.btn.danger { border-color:var(--neon-red); color:var(--neon-red); background:rgba(255,34,68,0.08); }
+.btn.danger:hover { background:rgba(255,34,68,0.2); }
+.btn.danger.active { background:rgba(255,34,68,0.25); box-shadow:0 0 15px rgba(255,34,68,0.4); }
+
+.speed-control {
+  display:flex;
+  align-items:center;
+  gap:6px;
+  font-size:10px;
+  color:var(--text-dim);
+  font-family:'Share Tech Mono',monospace;
+}
+.speed-control input[type=range] {
+  width:70px;
+  accent-color:var(--neon-purple);
+}
+
+/* ─── MAIN PANELS ─── */
+#main {
+  display:grid;
+  grid-template-rows: 1fr 160px;
+  grid-template-columns: 1fr 1fr 200px;
+  gap:6px;
+  overflow:hidden;
+}
+
+/* ─── TOPOLOGY CANVAS ─── */
+#topology-panel {
+  grid-row:1/2;
+  grid-column:1/3;
+  background:var(--panel);
+  border:1px solid var(--border);
+  border-radius:4px;
+  position:relative;
+  overflow:hidden;
+  backdrop-filter:blur(10px);
+}
+
+#topology-canvas { width:100%; height:100%; display:block; }
+
+.panel-title {
+  position:absolute;
+  top:8px; left:12px;
+  font-family:'Orbitron',monospace;
+  font-size:9px;
+  letter-spacing:3px;
+  color:var(--text-dim);
+}
+
+/* ─── BLOCKCHAIN PANEL ─── */
+#blockchain-panel {
+  grid-row:1/2;
+  grid-column:3/4;
+  background:var(--panel);
+  border:1px solid var(--border);
+  border-radius:4px;
+  position:relative;
+  overflow:hidden;
+  backdrop-filter:blur(10px);
+  display:flex;
+  flex-direction:column;
+  padding:30px 8px 8px;
+}
+
+#blockchain-scroll {
+  flex:1;
+  overflow-y:auto;
+  display:flex;
+  flex-direction:column-reverse;
+  gap:4px;
+}
+#blockchain-scroll::-webkit-scrollbar { width:3px; }
+#blockchain-scroll::-webkit-scrollbar-track { background:transparent; }
+#blockchain-scroll::-webkit-scrollbar-thumb { background:var(--neon-blue); border-radius:2px; }
+
+.block {
+  border-radius:3px;
+  padding:6px 8px;
+  font-family:'Share Tech Mono',monospace;
+  font-size:9px;
+  border-left:3px solid;
+  animation: blockIn 0.4s ease;
+  flex-shrink:0;
+}
+@keyframes blockIn {
+  from { opacity:0; transform:translateX(20px); }
+  to { opacity:1; transform:translateX(0); }
+}
+.block.genesis { border-color:#555; background:rgba(255,255,255,0.03); color:#666; }
+.block.model { border-color:var(--neon-blue); background:rgba(0,200,255,0.06); color:var(--neon-blue); }
+.block.update { border-color:var(--neon-purple); background:rgba(168,85,247,0.06); color:var(--neon-purple); }
+.block.consensus { border-color:var(--neon-green); background:rgba(0,255,136,0.06); color:var(--neon-green); }
+.block-hash { color:rgba(255,255,255,0.2); font-size:8px; margin-top:2px; }
+
+/* ─── METRICS BOTTOM LEFT ─── */
+#metrics-panel {
+  grid-row:2/3;
+  grid-column:1/2;
+  background:var(--panel);
+  border:1px solid var(--border);
+  border-radius:4px;
+  position:relative;
+  overflow:hidden;
+  backdrop-filter:blur(10px);
+  padding:26px 10px 8px;
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:6px;
+}
+
+.metric {
+  display:flex;
+  flex-direction:column;
+  gap:3px;
+}
+.metric-label {
+  font-size:9px;
+  color:var(--text-dim);
+  letter-spacing:1px;
+  text-transform:uppercase;
+  font-family:'Share Tech Mono',monospace;
+}
+.metric-value {
+  font-family:'Orbitron',monospace;
+  font-size:14px;
+  font-weight:700;
+  color:var(--neon-blue);
+}
+.metric-bar {
+  height:2px;
+  background:rgba(255,255,255,0.08);
+  border-radius:1px;
+  overflow:hidden;
+}
+.metric-bar-fill {
+  height:100%;
+  border-radius:1px;
+  transition:width .5s ease;
+}
+
+/* ─── ATTACK PANEL ─── */
+#attack-panel {
+  grid-row:2/3;
+  grid-column:2/3;
+  background:var(--panel);
+  border:1px solid var(--border);
+  border-radius:4px;
+  position:relative;
+  overflow:hidden;
+  backdrop-filter:blur(10px);
+  padding:26px 10px 8px;
+}
+
+.attack-log {
+  height:100%;
+  overflow-y:auto;
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+}
+.attack-log::-webkit-scrollbar { width:2px; }
+.attack-log::-webkit-scrollbar-thumb { background:var(--neon-red); }
+
+.attack-event {
+  font-family:'Share Tech Mono',monospace;
+  font-size:9px;
+  padding:2px 4px;
+  border-radius:2px;
+  animation: fadeIn .3s ease;
+}
+@keyframes fadeIn { from{opacity:0} to{opacity:1} }
+.attack-event.byzantine { color:var(--neon-red); background:rgba(255,34,68,0.07); }
+.attack-event.noise { color:var(--neon-orange); background:rgba(255,107,53,0.07); }
+.attack-event.detected { color:var(--neon-green); background:rgba(0,255,136,0.07); }
+.attack-event.info { color:var(--text-dim); }
+
+/* ─── LEGEND ─── */
+#legend-panel {
+  grid-row:2/3;
+  grid-column:3/4;
+  background:var(--panel);
+  border:1px solid var(--border);
+  border-radius:4px;
+  position:relative;
+  backdrop-filter:blur(10px);
+  padding:26px 10px 8px;
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+}
+
+.legend-item {
+  display:flex;
+  align-items:center;
+  gap:6px;
+  font-size:10px;
+  color:var(--text-dim);
+}
+.legend-dot {
+  width:8px; height:8px;
+  border-radius:50%;
+  flex-shrink:0;
+}
+
+/* ─── SIDEBAR ─── */
+#sidebar {
+  grid-row:2/3;
+  grid-column:2/3;
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  overflow:hidden;
+}
+
+/* ─── TIMELINE ─── */
+#timeline {
+  grid-column:1/-1;
+  background:var(--panel);
+  border:1px solid var(--border);
+  border-radius:4px;
+  backdrop-filter:blur(10px);
+  padding:6px 16px;
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+}
+
+.timeline-phases {
+  display:flex;
+  gap:4px;
+  align-items:center;
+  overflow-x:auto;
+}
+.timeline-phases::-webkit-scrollbar { height:2px; }
+.timeline-phases::-webkit-scrollbar-thumb { background:var(--neon-blue); }
+
+.phase-chip {
+  font-family:'Share Tech Mono',monospace;
+  font-size:8px;
+  padding:3px 8px;
+  border:1px solid rgba(255,255,255,0.08);
+  border-radius:2px;
+  color:var(--text-dim);
+  white-space:nowrap;
+  transition:all .3s;
+  cursor:default;
+}
+.phase-chip.active {
+  border-color:var(--neon-blue);
+  color:var(--neon-blue);
+  background:rgba(0,200,255,0.1);
+  box-shadow:0 0 10px rgba(0,200,255,0.2);
+}
+.phase-chip.done {
+  border-color:rgba(0,255,136,0.3);
+  color:var(--neon-green);
+  background:rgba(0,255,136,0.05);
+}
+
+.progress-track {
+  height:3px;
+  background:rgba(255,255,255,0.06);
+  border-radius:2px;
+  overflow:hidden;
+}
+.progress-fill {
+  height:100%;
+  background: linear-gradient(90deg, var(--neon-purple), var(--neon-blue));
+  border-radius:2px;
+  transition:width .6s ease;
+  position:relative;
+}
+.progress-fill::after {
+  content:'';
+  position:absolute;
+  right:0;
+  top:-1px;
+  width:4px;
+  height:5px;
+  background:white;
+  border-radius:2px;
+  box-shadow:0 0 8px var(--neon-blue);
+}
+
+#step-label {
+  font-family:'Share Tech Mono',monospace;
+  font-size:10px;
+  color:var(--neon-yellow);
+  letter-spacing:1px;
+  text-align:center;
+}
+
+/* Node tooltip */
+#tooltip {
+  position:fixed;
+  background:rgba(6,12,24,0.95);
+  border:1px solid var(--neon-blue);
+  border-radius:4px;
+  padding:8px 12px;
+  font-family:'Share Tech Mono',monospace;
+  font-size:10px;
+  color:var(--neon-blue);
+  pointer-events:none;
+  z-index:500;
+  display:none;
+  max-width:200px;
+  line-height:1.6;
+  box-shadow:0 0 20px rgba(0,200,255,0.2);
+}
+
+/* Log console */
+#log-panel {
+  position:fixed;
+  bottom:96px;
+  right:290px;
+  width:300px;
+  height:150px;
+  background:rgba(2,4,9,0.96);
+  border:1px solid rgba(0,200,255,0.2);
+  border-radius:4px;
+  padding:6px 8px;
+  overflow-y:auto;
+  font-family:'Share Tech Mono',monospace;
+  font-size:9px;
+  z-index:200;
+  display:none;
+}
+#log-panel::-webkit-scrollbar { width:2px; }
+#log-panel::-webkit-scrollbar-thumb { background:var(--neon-blue); }
+
+.log-line { color:var(--text-dim); padding:1px 0; }
+.log-line.info { color:var(--neon-blue); }
+.log-line.warn { color:var(--neon-orange); }
+.log-line.err { color:var(--neon-red); }
+.log-line.ok { color:var(--neon-green); }
+
+#log-toggle {
+  position:fixed;
+  bottom:96px;
+  right:290px;
+  font-family:'Share Tech Mono',monospace;
+  font-size:9px;
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+<!-- HEADER -->
+<div id="header">
+  <div class="logo">COBRA<span>-DFL</span></div>
+  <div class="header-center">
+    <div class="phase-badge" id="phase-badge">STANDBY</div>
+    <div id="round-display">ROUND: 0 / EPOCH: 0</div>
+  </div>
+  <div class="controls">
+    <div class="speed-control">
+      SPEED <input type="range" id="speed" min="1" max="5" value="2">
+    </div>
+    <button class="btn danger" id="btn-attack" onclick="toggleAttack()">⚡ ATTACK</button>
+    <button class="btn" id="btn-topo" onclick="toggleTopoMesh()" style="border-color:#00e5ff;color:#00e5ff;background:rgba(0,229,255,0.06)">⬡ FULL MESH</button>
+    <button class="btn" id="btn-log" onclick="toggleLog()">📋 LOG</button>
+    <button class="btn" id="btn-prev" onclick="prevStep()">◀ PREV</button>
+    <button class="btn" id="btn-next" onclick="nextStep()">NEXT ▶</button>
+    <button class="btn active" id="btn-play" onclick="togglePlay()">⏸ PAUSE</button>
+    <button class="btn" onclick="resetSim()">↺ RESET</button>
+  </div>
+</div>
+
+<!-- MAIN AREA -->
+<div id="main">
+  <!-- Topology -->
+  <div id="topology-panel">
+    <div class="panel-title" id="topo-panel-title">NETWORK TOPOLOGY — P2P MESH</div>
+    <canvas id="topology-canvas"></canvas>
+  </div>
+
+  <!-- Blockchain -->
+  <div id="blockchain-panel">
+    <div class="panel-title">BLOCKCHAIN LEDGER</div>
+    <div id="blockchain-scroll"></div>
+  </div>
+
+  <!-- Metrics -->
+  <div id="metrics-panel">
+    <div class="panel-title">LIVE METRICS</div>
+    <div class="metric">
+      <div class="metric-label">Accuracy</div>
+      <div class="metric-value" id="m-acc">0.00%</div>
+      <div class="metric-bar"><div class="metric-bar-fill" id="mb-acc" style="width:0%;background:var(--neon-green)"></div></div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Consensus</div>
+      <div class="metric-value" id="m-cons">0%</div>
+      <div class="metric-bar"><div class="metric-bar-fill" id="mb-cons" style="width:0%;background:var(--neon-blue)"></div></div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Byzantine</div>
+      <div class="metric-value" id="m-byz" style="color:var(--neon-red)">0</div>
+      <div class="metric-bar"><div class="metric-bar-fill" id="mb-byz" style="width:0%;background:var(--neon-red)"></div></div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Latency</div>
+      <div class="metric-value" id="m-lat" style="color:var(--neon-yellow)">0ms</div>
+      <div class="metric-bar"><div class="metric-bar-fill" id="mb-lat" style="width:0%;background:var(--neon-yellow)"></div></div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Compression</div>
+      <div class="metric-value" id="m-comp" style="color:var(--neon-purple)">1.0x</div>
+      <div class="metric-bar"><div class="metric-bar-fill" id="mb-comp" style="width:50%;background:var(--neon-purple)"></div></div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Comm Cost</div>
+      <div class="metric-value" id="m-comm" style="color:var(--neon-orange)">0MB</div>
+      <div class="metric-bar"><div class="metric-bar-fill" id="mb-comm" style="width:0%;background:var(--neon-orange)"></div></div>
+    </div>
+  </div>
+
+  <!-- Attack log -->
+  <div id="attack-panel">
+    <div class="panel-title">THREAT DETECTION</div>
+    <div class="attack-log" id="attack-log"></div>
+  </div>
+
+  <!-- Legend -->
+  <div id="legend-panel">
+    <div class="panel-title">LEGEND</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--neon-blue)"></div>Cluster A</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--neon-purple)"></div>Cluster B</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--neon-green)"></div>Cluster C</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--neon-yellow)"></div>Cluster D</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--neon-red);border:2px solid #ff0"></div>Malicious</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#fff;box-shadow:0 0 6px #fff"></div>CCM Node</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#333;border:1px solid #555"></div>Offline</div>
+    <div style="height:4px;border-top:1px solid var(--border);margin:2px 0"></div>
+    <div class="legend-item" style="font-size:9px;color:var(--text-dim)">★ = Cluster Head</div>
+    <div class="legend-item" style="font-size:9px;color:var(--text-dim)">◆ = CCM Member</div>
+    <div style="height:4px;border-top:1px solid var(--border);margin:2px 0"></div>
+    <div class="legend-item"><div style="width:18px;height:2px;background:#00e5ff;box-shadow:0 0 4px #00e5ff;border-radius:1px;flex-shrink:0"></div><span style="font-size:9px">Full Mesh Link</span></div>
+    <div class="legend-item"><div style="width:18px;height:2px;background:#4fc3f7;box-shadow:0 0 6px #4fc3f7;border-radius:1px;flex-shrink:0"></div><span style="font-size:9px">Optimized Link</span></div>
+    <div class="legend-item"><div style="width:18px;height:1px;background:#1a3a4a;border-radius:1px;flex-shrink:0"></div><span style="font-size:9px">Pruned Link</span></div>
+  </div>
+</div>
+
+<!-- SIDEBAR (right column) -->
+<div id="sidebar" style="grid-column:2/3;grid-row:1/3;display:flex;flex-direction:column;gap:6px;overflow:hidden;">
+</div>
+
+<!-- TIMELINE -->
+<div id="timeline">
+  <div class="timeline-phases" id="phase-chips"></div>
+  <div class="progress-track"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+  <div id="step-label">▶ PRESS PLAY TO START SIMULATION</div>
+</div>
+
+</div>
+
+<!-- TOOLTIP -->
+<div id="tooltip"></div>
+
+<!-- LOG PANEL -->
+<div id="log-panel"></div>
+
+<script>
+// ═══════════════════════════════════════════════════
+//  COBRA-DFL SIMULATION ENGINE
+// ═══════════════════════════════════════════════════
+
+const canvas = document.getElementById('topology-canvas');
+const ctx = canvas.getContext('2d');
+
+// ─── PHASES DEFINITION ───
+const PHASES = [
+  { id:1, name:"INIT",       label:"1: INITIALIZATION",      steps:["Init k global models","Select CCM committee","Download from blockchain"] },
+  { id:2, name:"CLUSTER",    label:"2: CLUSTERING",          steps:["Evaluate local loss","Self-assign via DFCA","Elect Cluster Heads"] },
+  { id:3, name:"TRAIN",      label:"3: LOCAL TRAINING",      steps:["Local SGD training","Generate local updates"] },
+  { id:4, name:"PRIVACY",    label:"4: PRIVACY PROTECTION",  steps:["Apply LDP clipping","Inject Gaussian noise"] },
+  { id:5, name:"COCO",       label:"5: COCO OPTIMIZATION",   steps:["Compute consensus dist","Optimize topology","Compress updates"] },
+  { id:6, name:"GOSSIP",     label:"6: GOSSIP AGGREGATION",  steps:["P2P gossip exchange","Running avg aggregation"] },
+  { id:7, name:"CLUSTER-AGG",label:"7: CLUSTER AGGREGATION", steps:["Filter malicious (BALANCE)","Aggregate cluster model","Shamir secret sharing","Distribute shares to CCM"] },
+  { id:8, name:"VERIFY",     label:"8: VERIFICATION",        steps:["CCM reconstructs","Threshold validation","Committee replacement","Validation scoring"] },
+  { id:9, name:"CONSENSUS",  label:"9: CONSENSUS",           steps:["Median score calc","Filter qualified","Create Update Block","CCM voting (2/3)"] },
+  { id:10,name:"GLOBAL-AGG", label:"10: GLOBAL AGGREGATION", steps:["Smart contract trigger","Aggregate by cluster","Generate new global models"] },
+  { id:11,name:"REWARD",     label:"11: REPUTATION & REWARD",steps:["Update reputations","Reward honest nodes","Penalize malicious"] },
+];
+
+// ─── NODE SETUP ───
+const CLUSTER_COLORS = ['#00c8ff','#a855f7','#00ff88','#ffd700'];
+const NODE_COUNT = 20;
+const CCM_COUNT = 5;
+
+let nodes = [];
+let particles = [];
+let packets = [];
+let round = 0;
+let epoch = 0;
+let currentPhase = -1;
+let currentStep = 0;
+let playing = true;
+let attackMode = false;
+let stepTimer = null;
+let animFrame = null;
+let logOpen = false;
+let byzantineCount = 0;
+let accuracy = 0;
+let consensusRate = 0;
+let latency = 0;
+let compression = 1;
+let commCost = 0;
+
+// ─── COCO TOPOLOGY STATE ───
+// Topology modes: 'default' | 'fullmesh' | 'optimizing' | 'optimized'
+let topoMode = 'default';
+let topoShowFull = false;          // manual toggle override
+let cocoEdges = [];                // [{a, b, alpha, targetAlpha, width, color, pulseOffset, surviving}]
+let cocoOptProgress = 0;           // 0→1 during optimization animation
+let cocoOptTimer = null;
+let meshPulseParticles = [];       // particles travelling along edges
+const COCO_FULL_COLOR   = '#00e5ff';
+const COCO_OPT_COLOR    = '#4fc3f7';
+const COCO_DEAD_COLOR   = '#1a3a4a';
+
+function initNodes() {
+  nodes = [];
+  const W = canvas.width, H = canvas.height;
+  const cx = W/2, cy = H/2;
+
+  // 4 clusters
+  const clusterCenters = [
+    {x: cx-W*0.28, y: cy-H*0.2},
+    {x: cx+W*0.28, y: cy-H*0.2},
+    {x: cx-W*0.28, y: cy+H*0.2},
+    {x: cx+W*0.28, y: cy+H*0.2},
+  ];
+
+  let id = 0;
+  for (let c = 0; c < 4; c++) {
+    const count = c < 2 ? 5 : 5;
+    for (let i = 0; i < count; i++) {
+      const angle = (i / count) * Math.PI * 2 + Math.random()*0.3;
+      const r = 55 + Math.random()*25;
+      nodes.push({
+        id: id++,
+        cluster: c,
+        x: clusterCenters[c].x + Math.cos(angle)*r,
+        y: clusterCenters[c].y + Math.sin(angle)*r,
+        tx: 0, ty: 0, // target
+        state: 'idle', // idle|training|sending|verifying|malicious|offline
+        reputation: 50 + Math.floor(Math.random()*50),
+        isCH: false,
+        isCCM: false,
+        isMalicious: false,
+        isOffline: false,
+        glowIntensity: 0,
+        pulsePhase: Math.random()*Math.PI*2,
+        accuracy: 0.4 + Math.random()*0.3,
+        loss: 0.5 + Math.random()*0.5,
+        updateSent: false,
+        rewardAnim: 0,
+        label: `N${id}`,
+      });
+    }
+  }
+
+  // Mark malicious nodes if attack mode
+  if (attackMode) {
+    const malNodes = [2, 7, 13];
+    malNodes.forEach(i => { if(nodes[i]) nodes[i].isMalicious = true; });
+  }
+
+  // Will elect CH and CCM later
+}
+
+function electClusterHeads() {
+  for (let c = 0; c < 4; c++) {
+    const cluster = nodes.filter(n => n.cluster === c && !n.isMalicious && !n.isOffline);
+    if (!cluster.length) continue;
+    cluster.sort((a,b) => b.reputation - a.reputation);
+    cluster[0].isCH = true;
+    cluster[0].reputation = Math.min(100, cluster[0].reputation + 10);
+  }
+}
+
+function electCCM() {
+  const eligible = nodes.filter(n => !n.isMalicious && !n.isOffline);
+  eligible.sort((a,b) => b.reputation - a.reputation);
+  eligible.slice(0, CCM_COUNT).forEach(n => { n.isCCM = true; n.state = 'verifying'; });
+}
+
+// ─── PARTICLES ───
+function spawnParticle(x, y, color, vx, vy, life) {
+  particles.push({ x, y, vx, vy, color, life, maxLife: life, size: 2+Math.random()*2 });
+}
+
+function spawnGradientParticles(node) {
+  for (let i = 0; i < 3; i++) {
+    const angle = Math.random()*Math.PI*2;
+    const speed = 0.5 + Math.random()*1.5;
+    spawnParticle(node.x, node.y, CLUSTER_COLORS[node.cluster],
+      Math.cos(angle)*speed, Math.sin(angle)*speed, 60+Math.random()*40);
+  }
+}
+
+function spawnNoiseParticles(node) {
+  for (let i = 0; i < 5; i++) {
+    const angle = Math.random()*Math.PI*2;
+    const r = 10+Math.random()*20;
+    spawnParticle(
+      node.x + Math.cos(angle)*r,
+      node.y + Math.sin(angle)*r,
+      '#ff6b35', Math.cos(angle)*0.3, Math.sin(angle)*0.3, 40);
+  }
+}
+
+// ─── PACKETS ───
+function sendPacket(from, to, color) {
+  packets.push({ x:from.x, y:from.y, tx:to.x, ty:to.y, color, progress:0, speed:0.02+Math.random()*0.02 });
+}
+
+// ─── DRAW ───
+function resize() {
+  const rect = document.getElementById('topology-panel').getBoundingClientRect();
+  canvas.width = rect.width;
+  canvas.height = rect.height;
+}
+
+function drawEdge(a, b, alpha, color, width) {
+  ctx.save();
+  ctx.strokeStyle = color || `rgba(0,200,255,${alpha})`;
+  ctx.lineWidth = width || 0.5;
+  ctx.beginPath();
+  ctx.moveTo(a.x, a.y);
+  ctx.lineTo(b.x, b.y);
+  ctx.stroke();
+  ctx.restore();
+}
+
+// ─── COCO FULL MESH BUILDER ───
+function buildFullMesh() {
+  cocoEdges = [];
+  for (let c = 0; c < 4; c++) {
+    const cluster = nodes.filter(n => n.cluster === c && !n.isOffline);
+    for (let i = 0; i < cluster.length; i++) {
+      for (let j = i + 1; j < cluster.length; j++) {
+        cocoEdges.push({
+          a: cluster[i], b: cluster[j],
+          alpha: 0, targetAlpha: 0.85,
+          width: 1.5,
+          color: COCO_FULL_COLOR,
+          pulseOffset: Math.random(),
+          surviving: true,
+          fadeDir: 1,  // 1=fade in, -1=fade out
+        });
+      }
+    }
+  }
+}
+
+// ─── COCO OPTIMISATION ───
+// Decide which edges survive (sparse spanning tree + random kept edges)
+function optimizeMesh() {
+  // Build per-cluster spanning tree edges (minimum by "consensus distance" = index diff)
+  for (let c = 0; c < 4; c++) {
+    const clEdges = cocoEdges.filter(e => e.a.cluster === c && e.b.cluster === c);
+    // Sort by distance (proxy for consensus distance)
+    clEdges.sort((e1,e2) =>
+      Math.hypot(e1.a.x-e1.b.x,e1.a.y-e1.b.y) - Math.hypot(e2.a.x-e2.b.x,e2.a.y-e2.b.y));
+    // Keep ~40% of edges (closer ones survive); rest fade
+    const keepCount = Math.max(Math.ceil(clEdges.length * 0.38), 2);
+    clEdges.forEach((e, i) => {
+      if (i < keepCount) {
+        e.surviving = true;
+        e.targetAlpha = 1.0;
+        e.width = 2.2;
+        e.color = COCO_OPT_COLOR;
+      } else {
+        e.surviving = false;
+        e.targetAlpha = 0;
+        e.color = COCO_DEAD_COLOR;
+      }
+    });
+  }
+  cocoOptProgress = 0;
+  animateOptimization();
+}
+
+function animateOptimization() {
+  clearInterval(cocoOptTimer);
+  cocoOptTimer = setInterval(() => {
+    cocoOptProgress = Math.min(1, cocoOptProgress + 0.018);
+    cocoEdges.forEach(e => {
+      const diff = e.targetAlpha - e.alpha;
+      // Dead edges fade faster; surviving edges brighten slower for drama
+      const speed = e.surviving ? 0.025 : 0.04;
+      e.alpha += diff * speed * (e.surviving ? 1 : 1.5);
+      if (Math.abs(diff) < 0.002) e.alpha = e.targetAlpha;
+    });
+    // Spawn mesh pulse particles on surviving bright edges
+    if (cocoOptProgress < 1) {
+      cocoEdges.filter(e => e.surviving && Math.random() < 0.12).forEach(e => {
+        spawnMeshPulse(e.a, e.b, COCO_OPT_COLOR);
+      });
+    }
+    if (cocoOptProgress >= 1) {
+      clearInterval(cocoOptTimer);
+      topoMode = 'optimized';
+    }
+  }, 30);
+}
+
+function spawnMeshPulse(from, to, color) {
+  meshPulseParticles.push({ x:from.x, y:from.y, tx:to.x, ty:to.y, color, t:0, speed:0.03+Math.random()*0.02 });
+}
+
+// Draw all coco edges with bloom effect
+function drawCocoEdges() {
+  const t = Date.now() / 1000;
+
+  cocoEdges.forEach(e => {
+    if (e.alpha < 0.01) return;
+    const pulse = e.surviving
+      ? 0.7 + 0.3 * Math.sin(t * 3 + e.pulseOffset * Math.PI * 2)
+      : 1.0;
+    const finalAlpha = e.alpha * pulse;
+
+    // Bloom pass 1 — wide soft glow
+    if (e.surviving && e.alpha > 0.3) {
+      ctx.save();
+      ctx.strokeStyle = `${e.color}${Math.round(finalAlpha * 0.18 * 255).toString(16).padStart(2,'0')}`;
+      ctx.lineWidth = e.width * 6;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(e.a.x, e.a.y);
+      ctx.lineTo(e.b.x, e.b.y);
+      ctx.stroke();
+      ctx.restore();
+
+      // Bloom pass 2 — medium glow
+      ctx.save();
+      ctx.strokeStyle = `${e.color}${Math.round(finalAlpha * 0.35 * 255).toString(16).padStart(2,'0')}`;
+      ctx.lineWidth = e.width * 3;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(e.a.x, e.a.y);
+      ctx.lineTo(e.b.x, e.b.y);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // Core line
+    ctx.save();
+    ctx.strokeStyle = `${e.color}${Math.round(finalAlpha * 255).toString(16).padStart(2,'0')}`;
+    ctx.lineWidth = e.surviving ? e.width : 0.5;
+    ctx.lineCap = 'round';
+    ctx.shadowColor = e.surviving ? e.color : 'transparent';
+    ctx.shadowBlur = e.surviving ? 8 : 0;
+    ctx.beginPath();
+    ctx.moveTo(e.a.x, e.a.y);
+    ctx.lineTo(e.b.x, e.b.y);
+    ctx.stroke();
+    ctx.restore();
+  });
+
+  // Draw mesh pulse particles
+  meshPulseParticles = meshPulseParticles.filter(p => p.t < 1);
+  meshPulseParticles.forEach(p => {
+    p.t += p.speed;
+    const px = p.x + (p.tx - p.x) * p.t;
+    const py = p.y + (p.ty - p.y) * p.t;
+    const alpha = Math.sin(p.t * Math.PI);
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(px, py, 3, 0, Math.PI * 2);
+    ctx.fillStyle = p.color;
+    ctx.shadowColor = p.color;
+    ctx.shadowBlur = 12;
+    ctx.globalAlpha = alpha;
+    ctx.fill();
+    ctx.restore();
+  });
+}
+
+// Label overlay for COCO phase
+function drawCocoLabel() {
+  if (topoMode === 'default') return;
+  ctx.save();
+  const W = canvas.width, H = canvas.height;
+  const label = topoMode === 'fullmesh'
+    ? '◈ BEFORE CoCo: FULL TOPOLOGY MESH'
+    : topoMode === 'optimizing'
+    ? `◈ CoCo OPTIMIZING...  ${Math.round(cocoOptProgress*100)}%`
+    : '◈ AFTER CoCo: OPTIMIZED SPARSE TOPOLOGY';
+  const color = topoMode === 'fullmesh' ? '#00e5ff' : topoMode === 'optimizing' ? '#ffd700' : '#00ff88';
+
+  // Background pill
+  ctx.font = '10px Share Tech Mono';
+  const tw = ctx.measureText(label).width;
+  ctx.fillStyle = 'rgba(2,4,9,0.8)';
+  ctx.beginPath();
+  ctx.roundRect(W/2 - tw/2 - 12, 16, tw + 24, 22, 3);
+  ctx.fill();
+  ctx.strokeStyle = color + '66';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  ctx.fillStyle = color;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 10;
+  ctx.fillText(label, W/2, 27);
+
+  // Bandwidth reduction badge (after opt)
+  if (topoMode === 'optimized') {
+    const bw = `↓ BANDWIDTH  −${Math.round(compression * 18)}%   LINKS ${cocoEdges.filter(e=>e.surviving).length}/${cocoEdges.length}`;
+    ctx.font = '9px Share Tech Mono';
+    const bw2 = ctx.measureText(bw).width;
+    ctx.fillStyle = 'rgba(2,4,9,0.8)';
+    ctx.beginPath();
+    ctx.roundRect(W/2 - bw2/2 - 10, 42, bw2 + 20, 18, 3);
+    ctx.fill();
+    ctx.strokeStyle = '#00ff8844';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.fillStyle = '#00ff88';
+    ctx.shadowColor = '#00ff88';
+    ctx.shadowBlur = 6;
+    ctx.fillText(bw, W/2, 51);
+  }
+  ctx.restore();
+}
+
+function drawNode(n) {
+  const t = Date.now()/1000;
+  const pulse = Math.sin(t*2 + n.pulsePhase)*0.3 + 0.7;
+  const color = n.isOffline ? '#333' : n.isMalicious ? '#ff2244' : CLUSTER_COLORS[n.cluster];
+  const baseR = n.isCH ? 12 : n.isCCM ? 11 : 8;
+  const r = baseR;
+
+  // Glow
+  if (!n.isOffline && n.glowIntensity > 0) {
+    const grad = ctx.createRadialGradient(n.x,n.y,0,n.x,n.y,r*3);
+    grad.addColorStop(0, color.replace(')',`, ${n.glowIntensity*0.6})`).replace('rgb','rgba'));
+    grad.addColorStop(1, 'transparent');
+    ctx.save();
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(n.x, n.y, r*3, 0, Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // State rings
+  if (n.state === 'training') {
+    ctx.save();
+    ctx.strokeStyle = `rgba(0,255,136,${pulse*0.6})`;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(n.x, n.y, r+4+Math.sin(t*3)*3, 0, Math.PI*2);
+    ctx.stroke();
+    ctx.restore();
+  }
+  if (n.state === 'sending') {
+    ctx.save();
+    ctx.strokeStyle = `rgba(0,200,255,${pulse})`;
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3,3]);
+    ctx.beginPath();
+    ctx.arc(n.x, n.y, r+6, 0, Math.PI*2);
+    ctx.stroke();
+    ctx.restore();
+  }
+  if (n.state === 'verifying') {
+    ctx.save();
+    ctx.strokeStyle = `rgba(168,85,247,${pulse})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(n.x, n.y, r+5, 0, Math.PI*2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // Node circle
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(n.x, n.y, r, 0, Math.PI*2);
+  ctx.fillStyle = n.isOffline ? '#1a1a1a' : n.isMalicious ? 'rgba(255,34,68,0.3)' : `${color}22`;
+  ctx.fill();
+  ctx.strokeStyle = n.isOffline ? '#333' : color;
+  ctx.lineWidth = n.isCH || n.isCCM ? 2 : 1;
+  ctx.stroke();
+  ctx.restore();
+
+  // CCM diamond
+  if (n.isCCM) {
+    ctx.save();
+    ctx.fillStyle = '#fff';
+    ctx.font = `${8}px Orbitron`;
+    ctx.textAlign='center';
+    ctx.textBaseline='middle';
+    ctx.fillText('◆', n.x, n.y);
+    ctx.restore();
+  } else if (n.isCH) {
+    ctx.save();
+    ctx.fillStyle = color;
+    ctx.font = `${9}px Orbitron`;
+    ctx.textAlign='center';
+    ctx.textBaseline='middle';
+    ctx.fillText('★', n.x, n.y);
+    ctx.restore();
+  } else if (n.isMalicious) {
+    ctx.save();
+    ctx.fillStyle = '#ff2244';
+    ctx.font = `${8}px Arial`;
+    ctx.textAlign='center';
+    ctx.textBaseline='middle';
+    ctx.fillText('✕', n.x, n.y);
+    ctx.restore();
+  }
+
+  // Reputation bar
+  if (!n.isOffline) {
+    const bw = 20, bh = 2;
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(n.x-bw/2, n.y+r+3, bw, bh);
+    const rColor = n.reputation>70?'#00ff88':n.reputation>40?'#ffd700':'#ff2244';
+    ctx.fillStyle = rColor;
+    ctx.fillRect(n.x-bw/2, n.y+r+3, bw*(n.reputation/100), bh);
+  }
+
+  // Reward anim
+  if (n.rewardAnim > 0) {
+    ctx.save();
+    ctx.globalAlpha = n.rewardAnim;
+    ctx.fillStyle = '#ffd700';
+    ctx.font = '10px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('+⬡', n.x, n.y - r - 10 - (1-n.rewardAnim)*15);
+    ctx.restore();
+    n.rewardAnim -= 0.02;
+    if (n.rewardAnim < 0) n.rewardAnim = 0;
+  }
+}
+
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Cluster halos
+  const clusterCenters = getClusterCenters();
+  clusterCenters.forEach((c, i) => {
+    const grad = ctx.createRadialGradient(c.x,c.y,0,c.x,c.y,80);
+    grad.addColorStop(0, `${CLUSTER_COLORS[i]}0a`);
+    grad.addColorStop(1, 'transparent');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, 80, 0, Math.PI*2);
+    ctx.fill();
+  });
+
+  // ── TOPOLOGY EDGES ──
+  if (topoMode !== 'default' && (topoShowFull || topoMode !== 'default')) {
+    // CoCo phase: draw full/optimized mesh edges
+    drawCocoEdges();
+  } else {
+    // Standard phases: dim proximity-based intra-cluster edges
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i+1; j < nodes.length; j++) {
+        const a = nodes[i], b = nodes[j];
+        if (a.cluster !== b.cluster) continue;
+        const dist = Math.hypot(a.x-b.x, a.y-b.y);
+        if (dist < 110) {
+          const alpha = 0.08 + (1-dist/110)*0.09;
+          drawEdge(a, b, alpha, CLUSTER_COLORS[a.cluster]+'1a', 0.6);
+        }
+      }
+    }
+  }
+
+  // CH-CCM connections
+  const chs = nodes.filter(n=>n.isCH);
+  const ccms = nodes.filter(n=>n.isCCM);
+  chs.forEach(ch => {
+    ccms.forEach(ccm => {
+      drawEdge(ch, ccm, 0.05, 'rgba(168,85,247,0.14)', 0.8);
+    });
+  });
+
+  // Particles
+  particles = particles.filter(p => p.life > 0);
+  particles.forEach(p => {
+    const alpha = p.life/p.maxLife;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size*alpha, 0, Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+    p.x += p.vx; p.y += p.vy;
+    p.life--;
+  });
+
+  // Packets
+  packets = packets.filter(p => p.progress < 1);
+  packets.forEach(p => {
+    p.progress += p.speed;
+    const x = p.x + (p.tx-p.x)*p.progress;
+    const y = p.y + (p.ty-p.y)*p.progress;
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(x, y, 3, 0, Math.PI*2);
+    ctx.fillStyle = p.color;
+    ctx.shadowColor = p.color;
+    ctx.shadowBlur = 10;
+    ctx.fill();
+    ctx.restore();
+  });
+
+  // Nodes
+  nodes.forEach(drawNode);
+
+  // Consensus meter (phase 9)
+  if (currentPhase === 8) drawConsensusMeter();
+
+  // CoCo overlay label
+  drawCocoLabel();
+
+  // Update panel title
+  const titles = { default:'NETWORK TOPOLOGY — P2P MESH', fullmesh:'NETWORK TOPOLOGY — ◈ FULL MESH (PRE-CoCo)', optimizing:'NETWORK TOPOLOGY — ◈ CoCo OPTIMIZING...', optimized:'NETWORK TOPOLOGY — ◈ OPTIMIZED SPARSE GRAPH' };
+  const titleEl = document.getElementById('topo-panel-title');
+  if (titleEl) {
+    titleEl.textContent = titles[topoMode] || titles.default;
+    titleEl.style.color = topoMode==='fullmesh'?'#00e5ff':topoMode==='optimizing'?'#ffd700':topoMode==='optimized'?'#00ff88':'';
+  }
+
+  animFrame = requestAnimationFrame(draw);
+}
+
+function drawConsensusMeter() {
+  const x = canvas.width - 80, y = 40;
+  const pct = Math.min(1, (Date.now()%3000)/3000);
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.arc(x, y, 25, 0, Math.PI*2);
+  ctx.stroke();
+  ctx.strokeStyle = pct > 0.67 ? '#00ff88' : '#ffd700';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.arc(x, y, 25, -Math.PI/2, -Math.PI/2 + pct*Math.PI*2);
+  ctx.stroke();
+  ctx.fillStyle = '#fff';
+  ctx.font = '8px Share Tech Mono';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(`${Math.round(pct*100)}%`, x, y);
+  ctx.fillStyle = 'rgba(255,255,255,0.3)';
+  ctx.font = '7px Share Tech Mono';
+  ctx.fillText('VOTES', x, y+14);
+  ctx.restore();
+}
+
+function getClusterCenters() {
+  const W = canvas.width, H = canvas.height;
+  const cx = W/2, cy = H/2;
+  return [
+    {x: cx-W*0.28, y: cy-H*0.2},
+    {x: cx+W*0.28, y: cy-H*0.2},
+    {x: cx-W*0.28, y: cy+H*0.2},
+    {x: cx+W*0.28, y: cy+H*0.2},
+  ];
+}
+
+// ─── BLOCKCHAIN ───
+let blockCount = 0;
+function addBlock(type, label) {
+  blockCount++;
+  const hash = Math.random().toString(36).substring(2,10).toUpperCase();
+  const el = document.createElement('div');
+  el.className = `block ${type}`;
+  el.innerHTML = `<div>#${blockCount} ${label}</div><div class="block-hash">0x${hash}...${hash.split('').reverse().join('')}</div>`;
+  document.getElementById('blockchain-scroll').prepend(el);
+}
+
+// ─── METRICS UPDATE ───
+function updateMetrics() {
+  accuracy = Math.min(99.5, accuracy + (Math.random()*2-0.2));
+  if (accuracy < 0) accuracy = 0;
+  consensusRate = 70 + Math.sin(Date.now()/2000)*15;
+  latency = 20 + Math.floor(Math.random()*80);
+  compression = 1 + (currentPhase>=4 ? 2.5+Math.random() : 0);
+  commCost = Math.min(150, commCost + 0.5+Math.random()*2);
+
+  document.getElementById('m-acc').textContent = accuracy.toFixed(1)+'%';
+  document.getElementById('mb-acc').style.width = accuracy+'%';
+  document.getElementById('m-cons').textContent = Math.round(consensusRate)+'%';
+  document.getElementById('mb-cons').style.width = consensusRate+'%';
+  document.getElementById('m-byz').textContent = byzantineCount;
+  document.getElementById('mb-byz').style.width = Math.min(100,byzantineCount*25)+'%';
+  document.getElementById('m-lat').textContent = latency+'ms';
+  document.getElementById('mb-lat').style.width = Math.min(100,latency/2)+'%';
+  document.getElementById('m-comp').textContent = compression.toFixed(1)+'x';
+  document.getElementById('mb-comp').style.width = Math.min(100,compression/5*100)+'%';
+  document.getElementById('m-comm').textContent = commCost.toFixed(0)+'MB';
+  document.getElementById('mb-comm').style.width = Math.min(100,commCost/1.5)+'%';
+}
+
+// ─── PHASE HANDLERS ───
+const phaseHandlers = [
+  // Phase 1: Init
+  () => {
+    log('Initializing k=4 global model heads...', 'info');
+    log('Selecting CCM by reputation rank...', 'info');
+    electCCM();
+    nodes.forEach(n => { n.glowIntensity = n.isCCM ? 1 : 0.3; });
+    addBlock('model', 'GENESIS MODEL BLOCK');
+    addBlock('model', 'MODEL BLOCK M0');
+    setTimeout(()=>addBlock('model','MODEL BLOCK M1'),400);
+    log('Models downloaded from blockchain.', 'ok');
+    updateMetrics();
+  },
+  // Phase 2: Clustering
+  () => {
+    log('Evaluating local loss per node...', 'info');
+    nodes.forEach(n => {
+      n.loss = 0.3 + Math.random()*0.7;
+      n.state = 'idle';
+    });
+    log('DFCA self-assignment complete.', 'ok');
+    electClusterHeads();
+    nodes.filter(n=>n.isCH).forEach(n => {
+      n.glowIntensity = 1;
+      log(`CH elected: N${n.id} (rep=${n.reputation}, cluster=${n.cluster})`, 'ok');
+    });
+    updateMetrics();
+  },
+  // Phase 3: Training
+  () => {
+    log('Starting local SGD training...', 'info');
+    nodes.filter(n=>!n.isOffline&&!n.isMalicious).forEach(n => {
+      n.state = 'training';
+      n.accuracy = Math.min(0.95, n.accuracy + 0.05 + Math.random()*0.05);
+    });
+    // gradient particles
+    let t = 0;
+    const interval = setInterval(() => {
+      nodes.filter(n=>n.state==='training').forEach(n => spawnGradientParticles(n));
+      t++;
+      if (t > 20) clearInterval(interval);
+    }, 100);
+    log('Local updates generated.', 'ok');
+    updateMetrics();
+  },
+  // Phase 4: Privacy
+  () => {
+    log('Applying LDP gradient clipping (C=1.0)...', 'info');
+    log(`Privacy params: ε=0.5, δ=1e-5`, 'info');
+    nodes.filter(n=>!n.isOffline&&!n.isMalicious).forEach(n => spawnNoiseParticles(n));
+    setTimeout(()=>{
+      nodes.filter(n=>!n.isOffline&&!n.isMalicious).forEach(n => spawnNoiseParticles(n));
+    },300);
+    log('Gaussian noise injected. Updates privatized.', 'ok');
+    updateMetrics();
+  },
+  // Phase 5: COCO
+  () => {
+    log('CoCo: Building full intra-cluster mesh topology...', 'info');
+
+    // ── Step 1: Show full mesh ──
+    topoMode = 'fullmesh';
+    buildFullMesh();
+    // Fade in all edges
+    cocoEdges.forEach(e => { e.alpha = 0; e.targetAlpha = 0.85; });
+
+    // Pulse packets along full mesh while showing it
+    let fullMeshInterval = setInterval(() => {
+      if (topoMode !== 'fullmesh') { clearInterval(fullMeshInterval); return; }
+      cocoEdges.filter(e => Math.random() < 0.08).forEach(e => {
+        spawnMeshPulse(Math.random()<0.5 ? e.a : e.b, Math.random()<0.5 ? e.b : e.a, COCO_FULL_COLOR);
+      });
+      // Animate alpha fade-in
+      cocoEdges.forEach(e => {
+        if (e.alpha < e.targetAlpha) e.alpha = Math.min(e.targetAlpha, e.alpha + 0.04);
+      });
+    }, 40);
+
+    log(`Full mesh established: ${cocoEdges.length} active links across 4 clusters`, 'ok');
+
+    // ── Step 2: After 1.4s start optimization ──
+    setTimeout(() => {
+      clearInterval(fullMeshInterval);
+      topoMode = 'optimizing';
+      log('CoCo: Computing consensus distances...', 'info');
+      log('CoCo: Pruning inefficient communication links...', 'info');
+      optimizeMesh();
+      compression = 3.2 + Math.random() * 0.8;
+      const removedCount = cocoEdges.filter(e => !e.surviving).length;
+      const keptCount = cocoEdges.filter(e => e.surviving).length;
+      setTimeout(() => {
+        log(`CoCo complete: ${keptCount} links kept, ${removedCount} pruned. Compression: ${compression.toFixed(2)}x`, 'ok');
+        addAttackEvent(`CoCo: topology optimized (${removedCount} links removed)`, 'detected');
+        updateMetrics();
+      }, 1200);
+    }, 1400);
+
+    updateMetrics();
+  },
+  // Phase 6: Gossip
+  () => {
+    log('Initiating P2P gossip protocol...', 'info');
+    // Keep optimized mesh visible during gossip — packets flow on surviving links
+    if (topoMode === 'optimized' || topoMode === 'optimizing') {
+      const surviving = cocoEdges.filter(e => e.surviving);
+      let gIdx = 0;
+      const gossipInterval = setInterval(() => {
+        if (gIdx++ > 18) { clearInterval(gossipInterval); return; }
+        const e = surviving[Math.floor(Math.random() * surviving.length)];
+        if (e) {
+          spawnMeshPulse(e.a, e.b, '#00c8ff');
+          spawnMeshPulse(e.b, e.a, '#a855f7');
+        }
+      }, 100);
+    } else {
+      const active = nodes.filter(n=>!n.isOffline&&!n.isMalicious);
+      for (let i = 0; i < 15; i++) {
+        const a = active[Math.floor(Math.random()*active.length)];
+        const b = active[Math.floor(Math.random()*active.length)];
+        if (a && b && a!==b) {
+          setTimeout(()=>sendPacket(a,b,CLUSTER_COLORS[a.cluster]), i*80);
+          setTimeout(()=>sendPacket(b,a,CLUSTER_COLORS[b.cluster]), i*80+40);
+        }
+      }
+    }
+    // Fade out mesh after gossip
+    setTimeout(() => { topoMode = 'default'; cocoEdges = []; meshPulseParticles = []; }, 1600);
+    log('Running avg aggregation: sequential fusion complete.', 'ok');
+    updateMetrics();
+  },
+  // Phase 7: Cluster Aggregation
+  () => {
+    log('CH running BALANCE Adaptive filter...', 'info');
+    if (attackMode) {
+      const malicious = nodes.filter(n=>n.isMalicious);
+      malicious.forEach(n => {
+        n.state = 'malicious';
+        n.glowIntensity = 0;
+        byzantineCount++;
+        addAttackEvent(`BYZANTINE: N${n.id} update REJECTED`, 'byzantine');
+        log(`[BALANCE] Byzantine node N${n.id} detected & rejected!`, 'err');
+      });
+    }
+    log('Applying Shamir Secret Sharing (k=3 of 5)...', 'info');
+    const ccms = nodes.filter(n=>n.isCCM);
+    const chs = nodes.filter(n=>n.isCH);
+    chs.forEach(ch => {
+      ccms.forEach((ccm,i) => {
+        setTimeout(()=>sendPacket(ch,ccm,'rgba(168,85,247,0.8)'), i*120);
+      });
+    });
+    addBlock('update', 'CLUSTER UPDATE BLOCK');
+    log('Secret shares distributed to CCM.', 'ok');
+    updateMetrics();
+  },
+  // Phase 8: Verification
+  () => {
+    log('CCM reconstructing updates (Lagrange interpolation)...', 'info');
+    nodes.filter(n=>n.isCCM).forEach(n => { n.state='verifying'; n.glowIntensity=0.8; });
+    log('Threshold validation: 4/5 CCM agree.', 'ok');
+    if (attackMode && Math.random()<0.3) {
+      addAttackEvent('COMMITTEE FAILURE: View-change triggered!', 'byzantine');
+      log('[WARN] Committee failure detected! Electing new CCM...', 'warn');
+      setTimeout(()=>{
+        nodes.filter(n=>n.isCCM).forEach(n=>{ n.isCCM=false; n.state='idle'; });
+        electCCM();
+      },600);
+    }
+    log('Validation scoring complete.', 'ok');
+    updateMetrics();
+  },
+  // Phase 9: Consensus
+  () => {
+    log('Computing median score across CCM...', 'info');
+    log('Filtering qualified updates (score > threshold)...', 'info');
+    const ccms = nodes.filter(n=>n.isCCM);
+    ccms.forEach((n,i) => {
+      setTimeout(()=>sendPacket(n, nodes[Math.floor(Math.random()*nodes.length)], '#00c8ff'), i*100);
+    });
+    setTimeout(()=>{
+      addBlock('consensus', 'UPDATE BLOCK (2/3 CONSENSUS)');
+      addBlock('consensus', 'FINALIZED — ROUND '+round);
+      log('Block finalized on chain. Consensus achieved!', 'ok');
+    }, 500);
+    updateMetrics();
+  },
+  // Phase 10: Global Agg
+  () => {
+    log('Smart contract triggered: aggregation begin...', 'info');
+    nodes.filter(n=>n.isCH).forEach(n=>{
+      n.glowIntensity = 1;
+      n.state = 'sending';
+      spawnGradientParticles(n);
+    });
+    setTimeout(()=>{
+      addBlock('model', `NEW GLOBAL MODEL (ROUND ${round})`);
+      log('New global models generated. Round complete.', 'ok');
+      nodes.forEach(n=>{ if(n.state==='sending') n.state='idle'; });
+    },500);
+    updateMetrics();
+  },
+  // Phase 11: Reputation
+  () => {
+    log('Updating reputation scores...', 'info');
+    nodes.forEach(n => {
+      if (n.isMalicious) {
+        n.reputation = Math.max(0, n.reputation - 20);
+        addAttackEvent(`PENALIZED: N${n.id} rep=${n.reputation}`, 'byzantine');
+      } else if (!n.isOffline) {
+        n.reputation = Math.min(100, n.reputation + 5 + Math.floor(Math.random()*8));
+        n.rewardAnim = 1;
+      }
+      n.state = 'idle';
+      n.glowIntensity = 0;
+    });
+    round++;
+    epoch = Math.floor(round/11);
+    document.getElementById('round-display').textContent = `ROUND: ${round} / EPOCH: ${epoch}`;
+    log(`Round ${round} complete. Starting next round...`, 'ok');
+    updateMetrics();
+  },
+];
+
+// ─── STEP ENGINE ───
+let stepQueue = [];
+
+function buildStepQueue() {
+  stepQueue = [];
+  PHASES.forEach((phase, pi) => {
+    phase.steps.forEach((step, si) => {
+      stepQueue.push({ phaseIdx: pi, stepIdx: si, phase, step });
+    });
+  });
+}
+
+let stepIndex = 0;
+
+function runStep() {
+  if (stepIndex >= stepQueue.length) {
+    // Loop
+    stepIndex = 0;
+    nodes.forEach(n => { n.state='idle'; n.isCH=false; n.isCCM=false; n.glowIntensity=0; n.updateSent=false; });
+    if (attackMode) {
+      const malNodes = [2,7,13];
+      malNodes.forEach(i=>{ if(nodes[i]) nodes[i].isMalicious=true; });
+    } else {
+      nodes.forEach(n=>n.isMalicious=false);
+    }
+  }
+
+  const item = stepQueue[stepIndex];
+  currentPhase = item.phaseIdx;
+  currentStep = item.stepIdx;
+
+  // Update UI
+  document.getElementById('phase-badge').textContent = item.phase.name;
+  document.getElementById('step-label').textContent = `▶ ${item.phase.label} → ${item.step}`;
+  const progress = (stepIndex / stepQueue.length) * 100;
+  document.getElementById('progress-fill').style.width = progress+'%';
+
+  // Update phase chips
+  document.querySelectorAll('.phase-chip').forEach((c,i) => {
+    c.classList.remove('active','done');
+    if (i === currentPhase) c.classList.add('active');
+    else if (i < currentPhase) c.classList.add('done');
+  });
+
+  // Run phase handler on first step of each phase
+  if (item.stepIdx === 0 && phaseHandlers[item.phaseIdx]) {
+    phaseHandlers[item.phaseIdx]();
+  }
+
+  log(`[STEP] ${item.phase.label}: ${item.step}`, 'info');
+  updateMetrics();
+
+  stepIndex++;
+}
+
+function scheduleNext() {
+  if (!playing) return;
+  const speed = parseInt(document.getElementById('speed').value);
+  const delay = [2000, 1200, 700, 400, 200][speed-1];
+  stepTimer = setTimeout(() => {
+    runStep();
+    scheduleNext();
+  }, delay);
+}
+
+function togglePlay() {
+  playing = !playing;
+  const btn = document.getElementById('btn-play');
+  if (playing) {
+    btn.textContent = '⏸ PAUSE';
+    btn.classList.add('active');
+    scheduleNext();
+  } else {
+    btn.textContent = '▶ PLAY';
+    btn.classList.remove('active');
+    clearTimeout(stepTimer);
+  }
+}
+
+function nextStep() {
+  clearTimeout(stepTimer);
+  runStep();
+  if (playing) scheduleNext();
+}
+
+function prevStep() {
+  clearTimeout(stepTimer);
+  stepIndex = Math.max(0, stepIndex - 2);
+  runStep();
+  if (playing) scheduleNext();
+}
+
+function resetSim() {
+  clearTimeout(stepTimer);
+  clearInterval(cocoOptTimer);
+  stepIndex = 0;
+  round = 0; epoch = 0;
+  byzantineCount = 0; accuracy = 30; consensusRate = 70; latency = 0; commCost = 0;
+  particles = []; packets = []; cocoEdges = []; meshPulseParticles = [];
+  topoMode = 'default'; topoShowFull = false;
+  cocoOptProgress = 0;
+  const tb = document.getElementById('btn-topo');
+  if (tb) { tb.textContent = '⬡ FULL MESH'; tb.classList.remove('active'); }
+  document.getElementById('blockchain-scroll').innerHTML = '';
+  document.getElementById('attack-log').innerHTML = '';
+  document.getElementById('log-panel').innerHTML = '';
+  addBlock('genesis','GENESIS BLOCK');
+  resize();
+  initNodes();
+  buildStepQueue();
+  if (playing) scheduleNext();
+  log('Simulation reset.', 'ok');
+}
+
+function toggleTopoMesh() {
+  const btn = document.getElementById('btn-topo');
+  if (topoMode === 'default' || topoMode === 'fullmesh' && topoShowFull) {
+    // Force show full mesh
+    if (cocoEdges.length === 0) buildFullMesh();
+    cocoEdges.forEach(e => {
+      e.alpha = e.targetAlpha = 0.85;
+      e.surviving = true;
+      e.width = 1.5;
+      e.color = COCO_FULL_COLOR;
+    });
+    topoShowFull = !topoShowFull;
+    if (topoShowFull) {
+      if (topoMode === 'default') topoMode = 'fullmesh';
+      btn.textContent = '⬡ OPTIMIZED'; btn.classList.add('active');
+    } else {
+      topoMode = 'default'; cocoEdges = []; meshPulseParticles = [];
+      btn.textContent = '⬡ FULL MESH'; btn.classList.remove('active');
+    }
+  } else {
+    topoShowFull = !topoShowFull;
+    if (topoShowFull) {
+      btn.textContent = '⬡ OPTIMIZED'; btn.classList.add('active');
+    } else {
+      btn.textContent = '⬡ FULL MESH'; btn.classList.remove('active');
+    }
+  }
+}
+
+function toggleAttack() {
+  attackMode = !attackMode;
+  const btn = document.getElementById('btn-attack');
+  btn.classList.toggle('active', attackMode);
+  if (attackMode) {
+    addAttackEvent('ATTACK MODE ENABLED — Byzantine nodes active', 'byzantine');
+    log('⚠ Attack mode enabled!', 'err');
+    const malNodes = [2,7,13];
+    malNodes.forEach(i=>{ if(nodes[i]) { nodes[i].isMalicious=true; nodes[i].state='malicious'; } });
+  } else {
+    nodes.forEach(n=>{ n.isMalicious=false; if(n.state==='malicious') n.state='idle'; });
+    addAttackEvent('Attack mode disabled', 'detected');
+    log('Attack mode disabled.', 'ok');
+  }
+}
+
+function addAttackEvent(text, type) {
+  const el = document.createElement('div');
+  el.className = `attack-event ${type}`;
+  el.textContent = `[${new Date().toLocaleTimeString()}] ${text}`;
+  const log = document.getElementById('attack-log');
+  log.prepend(el);
+  if (log.children.length > 40) log.removeChild(log.lastChild);
+}
+
+// ─── LOG ───
+function log(msg, type='info') {
+  if (!logOpen) return;
+  const el = document.createElement('div');
+  el.className = `log-line ${type}`;
+  el.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+  const panel = document.getElementById('log-panel');
+  panel.appendChild(el);
+  panel.scrollTop = panel.scrollHeight;
+  if (panel.children.length > 200) panel.removeChild(panel.firstChild);
+}
+
+function toggleLog() {
+  logOpen = !logOpen;
+  document.getElementById('log-panel').style.display = logOpen ? 'block' : 'none';
+}
+
+// ─── TOOLTIP ───
+canvas.addEventListener('mousemove', e => {
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  const tooltip = document.getElementById('tooltip');
+  let found = false;
+  for (const n of nodes) {
+    if (Math.hypot(n.x-mx, n.y-my) < 15) {
+      tooltip.style.display = 'block';
+      tooltip.style.left = (e.clientX+14)+'px';
+      tooltip.style.top = (e.clientY-10)+'px';
+      tooltip.innerHTML = `
+        N${n.id} | Cluster ${n.cluster}<br>
+        State: <b>${n.state}</b><br>
+        Rep: ${n.reputation}/100<br>
+        Loss: ${n.loss.toFixed(3)}<br>
+        Acc: ${(n.accuracy*100).toFixed(1)}%<br>
+        ${n.isCH?'★ CLUSTER HEAD<br>':''}${n.isCCM?'◆ CCM MEMBER<br>':''}${n.isMalicious?'⚠ MALICIOUS':''}
+      `;
+      found = true;
+      break;
+    }
+  }
+  if (!found) tooltip.style.display = 'none';
+});
+canvas.addEventListener('mouseleave', () => { document.getElementById('tooltip').style.display='none'; });
+
+// ─── PHASE CHIPS ───
+function buildPhaseChips() {
+  const container = document.getElementById('phase-chips');
+  container.innerHTML = '';
+  PHASES.forEach((p,i) => {
+    const chip = document.createElement('div');
+    chip.className = 'phase-chip';
+    chip.textContent = p.name;
+    chip.title = p.label;
+    container.appendChild(chip);
+  });
+}
+
+// ─── BACKGROUND PARTICLES ───
+function ambientParticles() {
+  if (Math.random() < 0.1) {
+    const n = nodes[Math.floor(Math.random()*nodes.length)];
+    if (n && !n.isOffline && n.state !== 'idle') {
+      spawnParticle(n.x, n.y, CLUSTER_COLORS[n.cluster],
+        (Math.random()-.5)*0.5, -0.5-Math.random(), 80+Math.random()*40);
+    }
+  }
+  requestAnimationFrame(ambientParticles);
+}
+
+// ─── INIT ───
+window.addEventListener('resize', () => { resize(); });
+
+// Bootstrap
+addBlock('genesis','GENESIS BLOCK');
+resize();
+initNodes();
+buildPhaseChips();
+buildStepQueue();
+
+// Start render loop
+draw();
+ambientParticles();
+
+// Auto start
+scheduleNext();
+</script>
+</body>
+</html>
