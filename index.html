@@ -6,487 +6,92 @@
 <title>COBRA-DFL — Decentralized Federated Learning Simulator</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;600&display=swap');
-
-:root {
-  --bg: #020409;
-  --panel: rgba(6,12,24,0.85);
-  --border: rgba(0,200,255,0.15);
-  --neon-blue: #00c8ff;
-  --neon-purple: #a855f7;
-  --neon-green: #00ff88;
-  --neon-orange: #ff6b35;
-  --neon-red: #ff2244;
-  --neon-yellow: #ffd700;
-  --text: #c8e0f0;
-  --text-dim: rgba(200,224,240,0.5);
-  --cluster-a: #00c8ff;
-  --cluster-b: #a855f7;
-  --cluster-c: #00ff88;
-  --cluster-d: #ffd700;
+:root{
+  --bg:#020409;--panel:rgba(6,12,24,0.88);--border:rgba(0,200,255,0.14);
+  --neon-blue:#00c8ff;--neon-purple:#a855f7;--neon-green:#00ff88;
+  --neon-orange:#ff6b35;--neon-red:#ff2244;--neon-yellow:#ffd700;
+  --cc-gold:#ffb300;--cc-purp:#c084fc;--text:#c8e0f0;--text-dim:rgba(200,224,240,0.48);
 }
-
-* { margin:0; padding:0; box-sizing:border-box; }
-
-body {
-  background: var(--bg);
-  color: var(--text);
-  font-family: 'Rajdhani', sans-serif;
-  font-size: 13px;
-  overflow: hidden;
-  height: 100vh;
-  width: 100vw;
-}
-
-/* Scanline overlay */
-body::before {
-  content:'';
-  position:fixed;
-  inset:0;
-  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
-  pointer-events:none;
-  z-index:1000;
-}
-
-/* Grid bg */
-body::after {
-  content:'';
-  position:fixed;
-  inset:0;
-  background-image:
-    linear-gradient(rgba(0,200,255,0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0,200,255,0.03) 1px, transparent 1px);
-  background-size: 40px 40px;
-  pointer-events:none;
-  z-index:0;
-}
-
-#app {
-  position:relative;
-  z-index:1;
-  display:grid;
-  grid-template-rows: 48px 1fr 90px;
-  grid-template-columns: 1fr 280px;
-  gap:6px;
-  padding:6px;
-  height:100vh;
-  width:100vw;
-}
-
-/* ─── HEADER ─── */
-#header {
-  grid-column: 1/-1;
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  padding:0 16px;
-  backdrop-filter: blur(10px);
-  border-radius:4px;
-}
-
-.logo {
-  font-family:'Orbitron',monospace;
-  font-size:16px;
-  font-weight:900;
-  color: var(--neon-blue);
-  text-shadow: 0 0 20px var(--neon-blue);
-  letter-spacing:4px;
-}
-.logo span { color: var(--neon-purple); }
-
-.header-center {
-  display:flex;
-  align-items:center;
-  gap:12px;
-}
-
-.phase-badge {
-  font-family:'Share Tech Mono',monospace;
-  font-size:11px;
-  color: var(--neon-green);
-  background: rgba(0,255,136,0.08);
-  border:1px solid rgba(0,255,136,0.3);
-  padding:3px 10px;
-  border-radius:2px;
-  letter-spacing:2px;
-}
-
-#round-display {
-  font-family:'Share Tech Mono',monospace;
-  font-size:11px;
-  color:var(--text-dim);
-}
-
-.controls {
-  display:flex;
-  gap:6px;
-  align-items:center;
-}
-
-.btn {
-  font-family:'Orbitron',monospace;
-  font-size:9px;
-  letter-spacing:1px;
-  padding:5px 12px;
-  border: 1px solid var(--neon-blue);
-  background: rgba(0,200,255,0.08);
-  color: var(--neon-blue);
-  cursor:pointer;
-  transition:all .15s;
-  border-radius:2px;
-}
-.btn:hover { background:rgba(0,200,255,0.2); box-shadow:0 0 10px rgba(0,200,255,0.3); }
-.btn.active { background:rgba(0,200,255,0.25); box-shadow:0 0 15px rgba(0,200,255,0.4); }
-.btn.danger { border-color:var(--neon-red); color:var(--neon-red); background:rgba(255,34,68,0.08); }
-.btn.danger:hover { background:rgba(255,34,68,0.2); }
-.btn.danger.active { background:rgba(255,34,68,0.25); box-shadow:0 0 15px rgba(255,34,68,0.4); }
-
-.speed-control {
-  display:flex;
-  align-items:center;
-  gap:6px;
-  font-size:10px;
-  color:var(--text-dim);
-  font-family:'Share Tech Mono',monospace;
-}
-.speed-control input[type=range] {
-  width:70px;
-  accent-color:var(--neon-purple);
-}
-
-/* ─── MAIN PANELS ─── */
-#main {
-  display:grid;
-  grid-template-rows: 1fr 160px;
-  grid-template-columns: 1fr 1fr 200px;
-  gap:6px;
-  overflow:hidden;
-}
-
-/* ─── TOPOLOGY CANVAS ─── */
-#topology-panel {
-  grid-row:1/2;
-  grid-column:1/3;
-  background:var(--panel);
-  border:1px solid var(--border);
-  border-radius:4px;
-  position:relative;
-  overflow:hidden;
-  backdrop-filter:blur(10px);
-}
-
-#topology-canvas { width:100%; height:100%; display:block; }
-
-.panel-title {
-  position:absolute;
-  top:8px; left:12px;
-  font-family:'Orbitron',monospace;
-  font-size:9px;
-  letter-spacing:3px;
-  color:var(--text-dim);
-}
-
-/* ─── BLOCKCHAIN PANEL ─── */
-#blockchain-panel {
-  grid-row:1/2;
-  grid-column:3/4;
-  background:var(--panel);
-  border:1px solid var(--border);
-  border-radius:4px;
-  position:relative;
-  overflow:hidden;
-  backdrop-filter:blur(10px);
-  display:flex;
-  flex-direction:column;
-  padding:30px 8px 8px;
-}
-
-#blockchain-scroll {
-  flex:1;
-  overflow-y:auto;
-  display:flex;
-  flex-direction:column-reverse;
-  gap:4px;
-}
-#blockchain-scroll::-webkit-scrollbar { width:3px; }
-#blockchain-scroll::-webkit-scrollbar-track { background:transparent; }
-#blockchain-scroll::-webkit-scrollbar-thumb { background:var(--neon-blue); border-radius:2px; }
-
-.block {
-  border-radius:3px;
-  padding:6px 8px;
-  font-family:'Share Tech Mono',monospace;
-  font-size:9px;
-  border-left:3px solid;
-  animation: blockIn 0.4s ease;
-  flex-shrink:0;
-}
-@keyframes blockIn {
-  from { opacity:0; transform:translateX(20px); }
-  to { opacity:1; transform:translateX(0); }
-}
-.block.genesis { border-color:#555; background:rgba(255,255,255,0.03); color:#666; }
-.block.model { border-color:var(--neon-blue); background:rgba(0,200,255,0.06); color:var(--neon-blue); }
-.block.update { border-color:var(--neon-purple); background:rgba(168,85,247,0.06); color:var(--neon-purple); }
-.block.consensus { border-color:var(--neon-green); background:rgba(0,255,136,0.06); color:var(--neon-green); }
-.block-hash { color:rgba(255,255,255,0.2); font-size:8px; margin-top:2px; }
-
-/* ─── METRICS BOTTOM LEFT ─── */
-#metrics-panel {
-  grid-row:2/3;
-  grid-column:1/2;
-  background:var(--panel);
-  border:1px solid var(--border);
-  border-radius:4px;
-  position:relative;
-  overflow:hidden;
-  backdrop-filter:blur(10px);
-  padding:26px 10px 8px;
-  display:grid;
-  grid-template-columns:1fr 1fr;
-  gap:6px;
-}
-
-.metric {
-  display:flex;
-  flex-direction:column;
-  gap:3px;
-}
-.metric-label {
-  font-size:9px;
-  color:var(--text-dim);
-  letter-spacing:1px;
-  text-transform:uppercase;
-  font-family:'Share Tech Mono',monospace;
-}
-.metric-value {
-  font-family:'Orbitron',monospace;
-  font-size:14px;
-  font-weight:700;
-  color:var(--neon-blue);
-}
-.metric-bar {
-  height:2px;
-  background:rgba(255,255,255,0.08);
-  border-radius:1px;
-  overflow:hidden;
-}
-.metric-bar-fill {
-  height:100%;
-  border-radius:1px;
-  transition:width .5s ease;
-}
-
-/* ─── ATTACK PANEL ─── */
-#attack-panel {
-  grid-row:2/3;
-  grid-column:2/3;
-  background:var(--panel);
-  border:1px solid var(--border);
-  border-radius:4px;
-  position:relative;
-  overflow:hidden;
-  backdrop-filter:blur(10px);
-  padding:26px 10px 8px;
-}
-
-.attack-log {
-  height:100%;
-  overflow-y:auto;
-  display:flex;
-  flex-direction:column;
-  gap:2px;
-}
-.attack-log::-webkit-scrollbar { width:2px; }
-.attack-log::-webkit-scrollbar-thumb { background:var(--neon-red); }
-
-.attack-event {
-  font-family:'Share Tech Mono',monospace;
-  font-size:9px;
-  padding:2px 4px;
-  border-radius:2px;
-  animation: fadeIn .3s ease;
-}
-@keyframes fadeIn { from{opacity:0} to{opacity:1} }
-.attack-event.byzantine { color:var(--neon-red); background:rgba(255,34,68,0.07); }
-.attack-event.noise { color:var(--neon-orange); background:rgba(255,107,53,0.07); }
-.attack-event.detected { color:var(--neon-green); background:rgba(0,255,136,0.07); }
-.attack-event.info { color:var(--text-dim); }
-
-/* ─── LEGEND ─── */
-#legend-panel {
-  grid-row:2/3;
-  grid-column:3/4;
-  background:var(--panel);
-  border:1px solid var(--border);
-  border-radius:4px;
-  position:relative;
-  backdrop-filter:blur(10px);
-  padding:26px 10px 8px;
-  display:flex;
-  flex-direction:column;
-  gap:4px;
-}
-
-.legend-item {
-  display:flex;
-  align-items:center;
-  gap:6px;
-  font-size:10px;
-  color:var(--text-dim);
-}
-.legend-dot {
-  width:8px; height:8px;
-  border-radius:50%;
-  flex-shrink:0;
-}
-
-/* ─── SIDEBAR ─── */
-#sidebar {
-  grid-row:2/3;
-  grid-column:2/3;
-  display:flex;
-  flex-direction:column;
-  gap:6px;
-  overflow:hidden;
-}
-
-/* ─── TIMELINE ─── */
-#timeline {
-  grid-column:1/-1;
-  background:var(--panel);
-  border:1px solid var(--border);
-  border-radius:4px;
-  backdrop-filter:blur(10px);
-  padding:6px 16px;
-  display:flex;
-  flex-direction:column;
-  gap:6px;
-}
-
-.timeline-phases {
-  display:flex;
-  gap:4px;
-  align-items:center;
-  overflow-x:auto;
-}
-.timeline-phases::-webkit-scrollbar { height:2px; }
-.timeline-phases::-webkit-scrollbar-thumb { background:var(--neon-blue); }
-
-.phase-chip {
-  font-family:'Share Tech Mono',monospace;
-  font-size:8px;
-  padding:3px 8px;
-  border:1px solid rgba(255,255,255,0.08);
-  border-radius:2px;
-  color:var(--text-dim);
-  white-space:nowrap;
-  transition:all .3s;
-  cursor:default;
-}
-.phase-chip.active {
-  border-color:var(--neon-blue);
-  color:var(--neon-blue);
-  background:rgba(0,200,255,0.1);
-  box-shadow:0 0 10px rgba(0,200,255,0.2);
-}
-.phase-chip.done {
-  border-color:rgba(0,255,136,0.3);
-  color:var(--neon-green);
-  background:rgba(0,255,136,0.05);
-}
-
-.progress-track {
-  height:3px;
-  background:rgba(255,255,255,0.06);
-  border-radius:2px;
-  overflow:hidden;
-}
-.progress-fill {
-  height:100%;
-  background: linear-gradient(90deg, var(--neon-purple), var(--neon-blue));
-  border-radius:2px;
-  transition:width .6s ease;
-  position:relative;
-}
-.progress-fill::after {
-  content:'';
-  position:absolute;
-  right:0;
-  top:-1px;
-  width:4px;
-  height:5px;
-  background:white;
-  border-radius:2px;
-  box-shadow:0 0 8px var(--neon-blue);
-}
-
-#step-label {
-  font-family:'Share Tech Mono',monospace;
-  font-size:10px;
-  color:var(--neon-yellow);
-  letter-spacing:1px;
-  text-align:center;
-}
-
-/* Node tooltip */
-#tooltip {
-  position:fixed;
-  background:rgba(6,12,24,0.95);
-  border:1px solid var(--neon-blue);
-  border-radius:4px;
-  padding:8px 12px;
-  font-family:'Share Tech Mono',monospace;
-  font-size:10px;
-  color:var(--neon-blue);
-  pointer-events:none;
-  z-index:500;
-  display:none;
-  max-width:200px;
-  line-height:1.6;
-  box-shadow:0 0 20px rgba(0,200,255,0.2);
-}
-
-/* Log console */
-#log-panel {
-  position:fixed;
-  bottom:96px;
-  right:290px;
-  width:300px;
-  height:150px;
-  background:rgba(2,4,9,0.96);
-  border:1px solid rgba(0,200,255,0.2);
-  border-radius:4px;
-  padding:6px 8px;
-  overflow-y:auto;
-  font-family:'Share Tech Mono',monospace;
-  font-size:9px;
-  z-index:200;
-  display:none;
-}
-#log-panel::-webkit-scrollbar { width:2px; }
-#log-panel::-webkit-scrollbar-thumb { background:var(--neon-blue); }
-
-.log-line { color:var(--text-dim); padding:1px 0; }
-.log-line.info { color:var(--neon-blue); }
-.log-line.warn { color:var(--neon-orange); }
-.log-line.err { color:var(--neon-red); }
-.log-line.ok { color:var(--neon-green); }
-
-#log-toggle {
-  position:fixed;
-  bottom:96px;
-  right:290px;
-  font-family:'Share Tech Mono',monospace;
-  font-size:9px;
-}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--text);font-family:'Rajdhani',sans-serif;font-size:15px;overflow:hidden;height:100vh;width:100vw;}
+body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.025) 2px,rgba(0,0,0,0.025) 4px);pointer-events:none;z-index:1000;}
+body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(0,200,255,0.022) 1px,transparent 1px),linear-gradient(90deg,rgba(0,200,255,0.022) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0;}
+#app{position:relative;z-index:1;display:grid;grid-template-rows:55px 1fr 100px;grid-template-columns:1fr 300px;gap:5px;padding:5px;height:100vh;width:100vw;}
+#header{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;background:var(--panel);border:1px solid var(--border);padding:0 14px;backdrop-filter:blur(12px);border-radius:4px;}
+.logo{font-family:'Orbitron',monospace;font-size:20px;font-weight:900;color:var(--neon-blue);text-shadow:0 0 20px var(--neon-blue);letter-spacing:4px;}
+.logo span{color:var(--neon-purple);}
+.header-center{display:flex;align-items:center;gap:10px;}
+.phase-badge{font-family:'Share Tech Mono',monospace;font-size:13px;color:var(--neon-green);background:rgba(0,255,136,0.07);border:1px solid rgba(0,255,136,0.28);padding:4px 12px;border-radius:2px;letter-spacing:2px;}
+#round-display{font-family:'Share Tech Mono',monospace;font-size:13px;color:var(--text-dim);}
+.controls{display:flex;gap:5px;align-items:center;}
+.btn{font-family:'Orbitron',monospace;font-size:11px;letter-spacing:1px;padding:6px 14px;border:1px solid var(--neon-blue);background:rgba(0,200,255,0.06);color:var(--neon-blue);cursor:pointer;transition:all .15s;border-radius:2px;}
+.btn:hover{background:rgba(0,200,255,0.17);box-shadow:0 0 9px rgba(0,200,255,0.28);}
+.btn.active{background:rgba(0,200,255,0.21);box-shadow:0 0 13px rgba(0,200,255,0.38);}
+.btn.danger{border-color:var(--neon-red);color:var(--neon-red);background:rgba(255,34,68,0.06);}
+.btn.danger:hover{background:rgba(255,34,68,0.17);}
+.btn.danger.active{background:rgba(255,34,68,0.21);box-shadow:0 0 13px rgba(255,34,68,0.38);}
+.speed-control{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text-dim);font-family:'Share Tech Mono',monospace;}
+.speed-control input[type=range]{width:62px;accent-color:var(--neon-purple);}
+#main{display:grid;grid-template-rows:1fr 180px;grid-template-columns:1fr 1fr 220px;gap:5px;overflow:hidden;}
+#topology-panel{grid-row:1/2;grid-column:1/3;background:var(--panel);border:1px solid var(--border);border-radius:4px;position:relative;overflow:hidden;backdrop-filter:blur(10px);}
+#topology-canvas{width:100%;height:100%;display:block;}
+.panel-title{position:absolute;top:7px;left:11px;font-family:'Orbitron',monospace;font-size:11px;letter-spacing:3px;color:var(--text-dim);transition:color .4s;pointer-events:none;}
+#blockchain-panel{grid-row:1/2;grid-column:3/4;background:var(--panel);border:1px solid var(--border);border-radius:4px;position:relative;overflow:hidden;backdrop-filter:blur(10px);display:flex;flex-direction:column;padding:32px 7px 7px;}
+#blockchain-scroll{flex:1;overflow-y:auto;display:flex;flex-direction:column-reverse;gap:4px;}
+#blockchain-scroll::-webkit-scrollbar{width:3px;}
+#blockchain-scroll::-webkit-scrollbar-thumb{background:var(--neon-blue);border-radius:2px;}
+.block{border-radius:3px;padding:7px 9px;font-family:'Share Tech Mono',monospace;font-size:11px;border-left:3px solid;animation:blockIn .4s ease;flex-shrink:0;}
+@keyframes blockIn{from{opacity:0;transform:translateX(16px)}to{opacity:1;transform:translateX(0)}}
+.block.genesis{border-color:#444;background:rgba(255,255,255,0.02);color:#555;}
+.block.model{border-color:var(--neon-blue);background:rgba(0,200,255,0.05);color:var(--neon-blue);}
+.block.update{border-color:var(--neon-purple);background:rgba(168,85,247,0.05);color:var(--neon-purple);}
+.block.consensus{border-color:var(--neon-green);background:rgba(0,255,136,0.05);color:var(--neon-green);}
+.block.global{border-color:var(--cc-gold);background:rgba(255,179,0,0.05);color:var(--cc-gold);}
+.block-hash{color:rgba(255,255,255,0.16);font-size:9px;margin-top:2px;}
+#metrics-panel{grid-row:2/3;grid-column:1/2;background:var(--panel);border:1px solid var(--border);border-radius:4px;position:relative;overflow:hidden;backdrop-filter:blur(10px);padding:28px 9px 7px;display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.metric{display:flex;flex-direction:column;gap:3px;}
+.metric-label{font-size:11px;color:var(--text-dim);letter-spacing:1px;text-transform:uppercase;font-family:'Share Tech Mono',monospace;}
+.metric-value{font-family:'Orbitron',monospace;font-size:16px;font-weight:700;color:var(--neon-blue);}
+.metric-bar{height:2px;background:rgba(255,255,255,0.06);border-radius:1px;overflow:hidden;}
+.metric-bar-fill{height:100%;border-radius:1px;transition:width .5s ease;}
+#attack-panel{grid-row:2/3;grid-column:2/3;background:var(--panel);border:1px solid var(--border);border-radius:4px;position:relative;overflow:hidden;backdrop-filter:blur(10px);padding:28px 9px 7px;}
+.attack-log{height:100%;overflow-y:auto;display:flex;flex-direction:column;gap:3px;}
+.attack-log::-webkit-scrollbar{width:2px;}
+.attack-log::-webkit-scrollbar-thumb{background:var(--neon-red);}
+.attack-event{font-family:'Share Tech Mono',monospace;font-size:11px;padding:3px 6px;border-radius:2px;animation:fadeIn .3s ease;}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.attack-event.byzantine{color:var(--neon-red);background:rgba(255,34,68,0.06);}
+.attack-event.noise{color:var(--neon-orange);background:rgba(255,107,53,0.06);}
+.attack-event.detected{color:var(--neon-green);background:rgba(0,255,136,0.06);}
+.attack-event.info{color:var(--text-dim);}
+.attack-event.consensus{color:var(--cc-gold);background:rgba(255,179,0,0.06);}
+#legend-panel{grid-row:2/3;grid-column:3/4;background:var(--panel);border:1px solid var(--border);border-radius:4px;position:relative;backdrop-filter:blur(10px);padding:28px 9px 7px;display:flex;flex-direction:column;gap:4px;overflow:hidden;}
+.legend-item{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-dim);}
+.legend-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+.legend-hr{height:1px;background:var(--border);margin:3px 0;flex-shrink:0;}
+#timeline{grid-column:1/-1;background:var(--panel);border:1px solid var(--border);border-radius:4px;backdrop-filter:blur(10px);padding:5px 14px;display:flex;flex-direction:column;gap:5px;justify-content:center;}
+.timeline-phases{display:flex;gap:4px;align-items:center;overflow-x:auto;}
+.timeline-phases::-webkit-scrollbar{height:2px;}
+.timeline-phases::-webkit-scrollbar-thumb{background:var(--neon-blue);}
+.phase-chip{font-family:'Share Tech Mono',monospace;font-size:10px;padding:4px 10px;border:1px solid rgba(255,255,255,0.07);border-radius:2px;color:var(--text-dim);white-space:nowrap;transition:all .3s;cursor:default;}
+.phase-chip.active{border-color:var(--neon-blue);color:var(--neon-blue);background:rgba(0,200,255,0.09);box-shadow:0 0 8px rgba(0,200,255,0.2);}
+.phase-chip.done{border-color:rgba(0,255,136,0.28);color:var(--neon-green);background:rgba(0,255,136,0.04);}
+.phase-chip.commit-style{border-color:rgba(255,179,0,0.25);color:var(--cc-gold);}
+.progress-track{height:4px;background:rgba(255,255,255,0.05);border-radius:2px;overflow:hidden;margin-top:2px;}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--neon-purple),var(--neon-blue));border-radius:2px;transition:width .6s ease;position:relative;}
+.progress-fill::after{content:'';position:absolute;right:0;top:-1px;width:5px;height:6px;background:#fff;border-radius:2px;box-shadow:0 0 7px var(--neon-blue);}
+#step-label{font-family:'Share Tech Mono',monospace;font-size:13px;color:var(--neon-yellow);letter-spacing:1px;text-align:center;margin-top:3px;}
+#tooltip{position:fixed;background:rgba(3,7,17,0.97);border:1px solid var(--neon-blue);border-radius:4px;padding:9px 13px;font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--neon-blue);pointer-events:none;z-index:500;display:none;max-width:250px;line-height:1.7;box-shadow:0 0 18px rgba(0,200,255,0.18);}
+#log-panel{position:fixed;bottom:110px;right:310px;width:330px;height:160px;background:rgba(2,4,9,0.97);border:1px solid rgba(0,200,255,0.18);border-radius:4px;padding:7px 9px;overflow-y:auto;font-family:'Share Tech Mono',monospace;font-size:11px;z-index:200;display:none;}
+#log-panel::-webkit-scrollbar{width:2px;}
+#log-panel::-webkit-scrollbar-thumb{background:var(--neon-blue);}
+.log-line{color:var(--text-dim);padding:2px 0;}.log-line.info{color:var(--neon-blue);}.log-line.warn{color:var(--neon-orange);}.log-line.err{color:var(--neon-red);}.log-line.ok{color:var(--neon-green);}
+#consensus-overlay{position:absolute;display:none;bottom:15px;left:50%;transform:translateX(-50%);background:rgba(3,7,17,0.92);border:1px solid rgba(255,179,0,0.45);border-radius:4px;padding:6px 18px;font-family:'Share Tech Mono',monospace;font-size:13px;color:var(--cc-gold);text-align:center;white-space:nowrap;box-shadow:0 0 16px rgba(255,179,0,0.14);pointer-events:none;}
 </style>
 </head>
 <body>
 <div id="app">
 
-<!-- HEADER -->
 <div id="header">
   <div class="logo">COBRA<span>-DFL</span></div>
   <div class="header-center">
@@ -494,99 +99,60 @@ body::after {
     <div id="round-display">ROUND: 0 / EPOCH: 0</div>
   </div>
   <div class="controls">
-    <div class="speed-control">
-      SPEED <input type="range" id="speed" min="1" max="5" value="2">
-    </div>
+    <div class="speed-control">SPD<input type="range" id="speed" min="1" max="5" value="2"></div>
     <button class="btn danger" id="btn-attack" onclick="toggleAttack()">⚡ ATTACK</button>
-    <button class="btn" id="btn-topo" onclick="toggleTopoMesh()" style="border-color:#00e5ff;color:#00e5ff;background:rgba(0,229,255,0.06)">⬡ FULL MESH</button>
+    <button class="btn" id="btn-topo" onclick="toggleTopoMesh()" style="border-color:#00e5ff;color:#00e5ff;background:rgba(0,229,255,0.05)">⬡ MESH</button>
     <button class="btn" id="btn-log" onclick="toggleLog()">📋 LOG</button>
-    <button class="btn" id="btn-prev" onclick="prevStep()">◀ PREV</button>
-    <button class="btn" id="btn-next" onclick="nextStep()">NEXT ▶</button>
+    <button class="btn" id="btn-prev" onclick="prevStep()">◀</button>
+    <button class="btn" id="btn-next" onclick="nextStep()">▶</button>
     <button class="btn active" id="btn-play" onclick="togglePlay()">⏸ PAUSE</button>
     <button class="btn" onclick="resetSim()">↺ RESET</button>
   </div>
 </div>
 
-<!-- MAIN AREA -->
 <div id="main">
-  <!-- Topology -->
   <div id="topology-panel">
-    <div class="panel-title" id="topo-panel-title">NETWORK TOPOLOGY — P2P MESH</div>
+    <div class="panel-title" id="topo-panel-title">COBRA-DFL — BLOCKCHAIN-SECURED FEDERATED LEARNING PIPELINE</div>
     <canvas id="topology-canvas"></canvas>
+    <div id="consensus-overlay">◈ COMMITTEE CONSENSUS — AWAITING 2/3 VOTES</div>
   </div>
-
-  <!-- Blockchain -->
   <div id="blockchain-panel">
     <div class="panel-title">BLOCKCHAIN LEDGER</div>
     <div id="blockchain-scroll"></div>
   </div>
-
-  <!-- Metrics -->
   <div id="metrics-panel">
     <div class="panel-title">LIVE METRICS</div>
-    <div class="metric">
-      <div class="metric-label">Accuracy</div>
-      <div class="metric-value" id="m-acc">0.00%</div>
-      <div class="metric-bar"><div class="metric-bar-fill" id="mb-acc" style="width:0%;background:var(--neon-green)"></div></div>
-    </div>
-    <div class="metric">
-      <div class="metric-label">Consensus</div>
-      <div class="metric-value" id="m-cons">0%</div>
-      <div class="metric-bar"><div class="metric-bar-fill" id="mb-cons" style="width:0%;background:var(--neon-blue)"></div></div>
-    </div>
-    <div class="metric">
-      <div class="metric-label">Byzantine</div>
-      <div class="metric-value" id="m-byz" style="color:var(--neon-red)">0</div>
-      <div class="metric-bar"><div class="metric-bar-fill" id="mb-byz" style="width:0%;background:var(--neon-red)"></div></div>
-    </div>
-    <div class="metric">
-      <div class="metric-label">Latency</div>
-      <div class="metric-value" id="m-lat" style="color:var(--neon-yellow)">0ms</div>
-      <div class="metric-bar"><div class="metric-bar-fill" id="mb-lat" style="width:0%;background:var(--neon-yellow)"></div></div>
-    </div>
-    <div class="metric">
-      <div class="metric-label">Compression</div>
-      <div class="metric-value" id="m-comp" style="color:var(--neon-purple)">1.0x</div>
-      <div class="metric-bar"><div class="metric-bar-fill" id="mb-comp" style="width:50%;background:var(--neon-purple)"></div></div>
-    </div>
-    <div class="metric">
-      <div class="metric-label">Comm Cost</div>
-      <div class="metric-value" id="m-comm" style="color:var(--neon-orange)">0MB</div>
-      <div class="metric-bar"><div class="metric-bar-fill" id="mb-comm" style="width:0%;background:var(--neon-orange)"></div></div>
-    </div>
+    <div class="metric"><div class="metric-label">Accuracy</div><div class="metric-value" id="m-acc">0.0%</div><div class="metric-bar"><div class="metric-bar-fill" id="mb-acc" style="width:0%;background:var(--neon-green)"></div></div></div>
+    <div class="metric"><div class="metric-label">Consensus</div><div class="metric-value" id="m-cons">0%</div><div class="metric-bar"><div class="metric-bar-fill" id="mb-cons" style="width:0%;background:var(--neon-blue)"></div></div></div>
+    <div class="metric"><div class="metric-label">Byzantine</div><div class="metric-value" id="m-byz" style="color:var(--neon-red)">0</div><div class="metric-bar"><div class="metric-bar-fill" id="mb-byz" style="width:0%;background:var(--neon-red)"></div></div></div>
+    <div class="metric"><div class="metric-label">Latency</div><div class="metric-value" id="m-lat" style="color:var(--neon-yellow)">0ms</div><div class="metric-bar"><div class="metric-bar-fill" id="mb-lat" style="width:0%;background:var(--neon-yellow)"></div></div></div>
+    <div class="metric"><div class="metric-label">Compress</div><div class="metric-value" id="m-comp" style="color:var(--neon-purple)">1.0x</div><div class="metric-bar"><div class="metric-bar-fill" id="mb-comp" style="width:50%;background:var(--neon-purple)"></div></div></div>
+    <div class="metric"><div class="metric-label">CommCost</div><div class="metric-value" id="m-comm" style="color:var(--neon-orange)">0MB</div><div class="metric-bar"><div class="metric-bar-fill" id="mb-comm" style="width:0%;background:var(--neon-orange)"></div></div></div>
   </div>
-
-  <!-- Attack log -->
   <div id="attack-panel">
-    <div class="panel-title">THREAT DETECTION</div>
+    <div class="panel-title">THREAT / EVENTS</div>
     <div class="attack-log" id="attack-log"></div>
   </div>
-
-  <!-- Legend -->
   <div id="legend-panel">
     <div class="panel-title">LEGEND</div>
-    <div class="legend-item"><div class="legend-dot" style="background:var(--neon-blue)"></div>Cluster A</div>
-    <div class="legend-item"><div class="legend-dot" style="background:var(--neon-purple)"></div>Cluster B</div>
-    <div class="legend-item"><div class="legend-dot" style="background:var(--neon-green)"></div>Cluster C</div>
-    <div class="legend-item"><div class="legend-dot" style="background:var(--neon-yellow)"></div>Cluster D</div>
-    <div class="legend-item"><div class="legend-dot" style="background:var(--neon-red);border:2px solid #ff0"></div>Malicious</div>
-    <div class="legend-item"><div class="legend-dot" style="background:#fff;box-shadow:0 0 6px #fff"></div>CCM Node</div>
-    <div class="legend-item"><div class="legend-dot" style="background:#333;border:1px solid #555"></div>Offline</div>
-    <div style="height:4px;border-top:1px solid var(--border);margin:2px 0"></div>
-    <div class="legend-item" style="font-size:9px;color:var(--text-dim)">★ = Cluster Head</div>
-    <div class="legend-item" style="font-size:9px;color:var(--text-dim)">◆ = CCM Member</div>
-    <div style="height:4px;border-top:1px solid var(--border);margin:2px 0"></div>
-    <div class="legend-item"><div style="width:18px;height:2px;background:#00e5ff;box-shadow:0 0 4px #00e5ff;border-radius:1px;flex-shrink:0"></div><span style="font-size:9px">Full Mesh Link</span></div>
-    <div class="legend-item"><div style="width:18px;height:2px;background:#4fc3f7;box-shadow:0 0 6px #4fc3f7;border-radius:1px;flex-shrink:0"></div><span style="font-size:9px">Optimized Link</span></div>
-    <div class="legend-item"><div style="width:18px;height:1px;background:#1a3a4a;border-radius:1px;flex-shrink:0"></div><span style="font-size:9px">Pruned Link</span></div>
+    <div class="legend-item"><div class="legend-dot" style="background:#00c8ff"></div>Cluster A Workers</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#a855f7"></div>Cluster B Workers</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#00ff88"></div>Cluster C Workers</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#ffd700"></div>Cluster D Workers</div>
+    <div class="legend-hr"></div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--cc-gold);box-shadow:0 0 5px var(--cc-gold)"></div>◆ Committee Validator</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--cc-purp);box-shadow:0 0 5px var(--cc-purp)"></div>⬡ Smart Contract</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--neon-red);border:2px solid yellow"></div>Malicious Node</div>
+    <div class="legend-hr"></div>
+    <div class="legend-item" style="font-size:11px">★ Cluster Head  ◆ Validator</div>
+    <div class="legend-hr"></div>
+    <div class="legend-item"><div style="width:16px;height:2px;background:#00e5ff;box-shadow:0 0 4px #00e5ff;border-radius:1px;flex-shrink:0"></div><span style="font-size:11px">Full Mesh</span></div>
+    <div class="legend-item"><div style="width:16px;height:2px;background:#4fc3f7;border-radius:1px;flex-shrink:0"></div><span style="font-size:11px">Optimized</span></div>
+    <div class="legend-item"><div style="width:16px;height:2px;background:var(--cc-gold);box-shadow:0 0 4px var(--cc-gold);border-radius:1px;flex-shrink:0"></div><span style="font-size:11px">CH→Committee</span></div>
+    <div class="legend-item"><div style="width:16px;height:2px;background:var(--cc-purp);border-radius:1px;flex-shrink:0"></div><span style="font-size:11px">→Smart Contract</span></div>
   </div>
 </div>
 
-<!-- SIDEBAR (right column) -->
-<div id="sidebar" style="grid-column:2/3;grid-row:1/3;display:flex;flex-direction:column;gap:6px;overflow:hidden;">
-</div>
-
-<!-- TIMELINE -->
 <div id="timeline">
   <div class="timeline-phases" id="phase-chips"></div>
   <div class="progress-track"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
@@ -594,1136 +160,1265 @@ body::after {
 </div>
 
 </div>
-
-<!-- TOOLTIP -->
 <div id="tooltip"></div>
-
-<!-- LOG PANEL -->
 <div id="log-panel"></div>
 
 <script>
-// ═══════════════════════════════════════════════════
-//  COBRA-DFL SIMULATION ENGINE
-// ═══════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════
+//  COBRA-DFL  —  COMMITTEE CONSENSUS LAYER + SMART CONTRACT ENGINE
+// ══════════════════════════════════════════════════════════════════
 
 const canvas = document.getElementById('topology-canvas');
-const ctx = canvas.getContext('2d');
+const ctx    = canvas.getContext('2d');
 
-// ─── PHASES DEFINITION ───
+// ── PHASES ────────────────────────────────────────────────────────
 const PHASES = [
-  { id:1, name:"INIT",       label:"1: INITIALIZATION",      steps:["Init k global models","Select CCM committee","Download from blockchain"] },
-  { id:2, name:"CLUSTER",    label:"2: CLUSTERING",          steps:["Evaluate local loss","Self-assign via DFCA","Elect Cluster Heads"] },
-  { id:3, name:"TRAIN",      label:"3: LOCAL TRAINING",      steps:["Local SGD training","Generate local updates"] },
-  { id:4, name:"PRIVACY",    label:"4: PRIVACY PROTECTION",  steps:["Apply LDP clipping","Inject Gaussian noise"] },
-  { id:5, name:"COCO",       label:"5: COCO OPTIMIZATION",   steps:["Compute consensus dist","Optimize topology","Compress updates"] },
-  { id:6, name:"GOSSIP",     label:"6: GOSSIP AGGREGATION",  steps:["P2P gossip exchange","Running avg aggregation"] },
-  { id:7, name:"CLUSTER-AGG",label:"7: CLUSTER AGGREGATION", steps:["Filter malicious (BALANCE)","Aggregate cluster model","Shamir secret sharing","Distribute shares to CCM"] },
-  { id:8, name:"VERIFY",     label:"8: VERIFICATION",        steps:["CCM reconstructs","Threshold validation","Committee replacement","Validation scoring"] },
-  { id:9, name:"CONSENSUS",  label:"9: CONSENSUS",           steps:["Median score calc","Filter qualified","Create Update Block","CCM voting (2/3)"] },
-  { id:10,name:"GLOBAL-AGG", label:"10: GLOBAL AGGREGATION", steps:["Smart contract trigger","Aggregate by cluster","Generate new global models"] },
-  { id:11,name:"REWARD",     label:"11: REPUTATION & REWARD",steps:["Update reputations","Reward honest nodes","Penalize malicious"] },
+  { id:1,  name:"INIT",       label:"1: INITIALIZATION",         steps:["Init k global models","Select 3 Committee Validators","Download from blockchain"] },
+  { id:2,  name:"CLUSTER",    label:"2: CLUSTERING",             steps:["Evaluate local loss","DFCA self-assignment","Elect Cluster Heads"] },
+  { id:3,  name:"TRAIN",      label:"3: LOCAL TRAINING",         steps:["Local SGD training","Generate local updates"] },
+  { id:4,  name:"PRIVACY",    label:"4: PRIVACY PROTECTION",     steps:["LDP gradient clipping","Inject Gaussian noise"] },
+  { id:5,  name:"COCO",       label:"5: COCO OPTIMIZATION",      steps:["Build full mesh","Consensus distance calc","Sparse graph rebuild"] },
+  { id:6,  name:"GOSSIP",     label:"6: GOSSIP AGGREGATION",     steps:["P2P gossip exchange","Running avg aggregation"] },
+  { id:7,  name:"CLUST-AGG",  label:"7: CLUSTER AGGREGATION",    steps:["BALANCE filter","Aggregate cluster model","Shamir secret sharing"] },
+  { id:8,  name:"CH→COMMIT",  label:"8: CH → COMMITTEE UPLOAD",  steps:["Encrypt cluster update","Shamir fragments dispatch","Validator receipt confirm"] },
+  { id:9,  name:"VERIFY",     label:"9: COMMITTEE VERIFICATION", steps:["Lagrange reconstruction","Quality score calc","Threshold validation"] },
+  { id:10, name:"CONSENSUS",  label:"10: COMMITTEE CONSENSUS",   steps:["Sync pulses","Voting signals (2/3 rule)","Committee Proposed Blocks"] },
+  { id:11, name:"GLOBAL-AGG", label:"11: GLOBAL AGGREGATION",    steps:["Proposed blocks → SC merge","Global Model Core","New global model block"] },
+  { id:12, name:"SMART-CTR",  label:"12: SMART CONTRACT ENGINE", steps:["SC activation","Reward distribution","Reputation updates","Trigger next round"] },
 ];
 
-// ─── NODE SETUP ───
+// ── CONSTANTS ────────────────────────────────────────────────────
 const CLUSTER_COLORS = ['#00c8ff','#a855f7','#00ff88','#ffd700'];
-const NODE_COUNT = 20;
-const CCM_COUNT = 5;
+const CC_GOLD = '#ffb300';
+const CC_PURP = '#c084fc';
+const COCO_FULL = '#00e5ff';
+const COCO_OPT  = '#4fc3f7';
+const COCO_DEAD = '#1a3a4a';
 
-let nodes = [];
-let particles = [];
-let packets = [];
-let round = 0;
-let epoch = 0;
-let currentPhase = -1;
-let currentStep = 0;
-let playing = true;
-let attackMode = false;
-let stepTimer = null;
-let animFrame = null;
-let logOpen = false;
-let byzantineCount = 0;
-let accuracy = 0;
-let consensusRate = 0;
-let latency = 0;
-let compression = 1;
-let commCost = 0;
+// ── SIMULATION STATE ─────────────────────────────────────────────
+let nodes=[], particles=[], packets=[], rewardTokens=[];
+let committeeNodes=[], scNode=null;
+let globalModelCore=null;
+let committeeBlocks = [];
+let finalAggregatedBlock = null;
 
-// ─── COCO TOPOLOGY STATE ───
-// Topology modes: 'default' | 'fullmesh' | 'optimizing' | 'optimized'
-let topoMode = 'default';
-let topoShowFull = false;          // manual toggle override
-let cocoEdges = [];                // [{a, b, alpha, targetAlpha, width, color, pulseOffset, surviving}]
-let cocoOptProgress = 0;           // 0→1 during optimization animation
-let cocoOptTimer = null;
-let meshPulseParticles = [];       // particles travelling along edges
-const COCO_FULL_COLOR   = '#00e5ff';
-const COCO_OPT_COLOR    = '#4fc3f7';
-const COCO_DEAD_COLOR   = '#1a3a4a';
+let round=0, epoch=0, currentPhase=-1, currentStep=0;
+let playing=true, attackMode=false, logOpen=false;
+let stepTimer=null;
+let byzantineCount=0, accuracy=0, consensusRate=0, latency=0, compression=1, commCost=0;
+let consensusProgress=0;
 
-function initNodes() {
-  nodes = [];
-  const W = canvas.width, H = canvas.height;
-  const cx = W/2, cy = H/2;
+// CoCo
+let topoMode='default', topoShowFull=false, cocoEdges=[];
+let cocoOptProgress=0, cocoOptTimer=null, meshPulseParticles=[];
 
-  // 4 clusters
-  const clusterCenters = [
-    {x: cx-W*0.28, y: cy-H*0.2},
-    {x: cx+W*0.28, y: cy-H*0.2},
-    {x: cx-W*0.28, y: cy+H*0.2},
-    {x: cx+W*0.28, y: cy+H*0.2},
+// ── RESIZE ────────────────────────────────────────────────────────
+function resize(){
+  const r=document.getElementById('topology-panel').getBoundingClientRect();
+  canvas.width=r.width; canvas.height=r.height;
+}
+
+// ── LAYOUT ────────────────────────────────────────────────────────
+function getClusterCenters(){
+  const W=canvas.width, H=canvas.height, cx=W/2;
+  const cy = H*0.62;
+  const rx = W*0.29, ry = H*0.17;
+  return [
+    {x:cx-rx, y:cy-ry},
+    {x:cx+rx, y:cy-ry},
+    {x:cx-rx, y:cy+ry},
+    {x:cx+rx, y:cy+ry},
   ];
+}
 
-  let id = 0;
-  for (let c = 0; c < 4; c++) {
-    const count = c < 2 ? 5 : 5;
-    for (let i = 0; i < count; i++) {
-      const angle = (i / count) * Math.PI * 2 + Math.random()*0.3;
-      const r = 55 + Math.random()*25;
+function getCommitteePositions(){
+  const W=canvas.width, H=canvas.height, cx=W/2;
+  const cy = H*0.28;
+  return [
+    {x:cx-W*0.18, y:cy+10},
+    {x:cx,         y:cy-18},
+    {x:cx+W*0.18, y:cy+10},
+  ];
+}
+
+function getSCPosition(){
+  return {x:canvas.width/2, y:canvas.height*0.1};
+}
+
+// ── INIT NODES ───────────────────────────────────────────────────
+function initNodes(){
+  nodes=[]; committeeNodes=[]; scNode=null;
+  globalModelCore=null; rewardTokens=[];
+  committeeBlocks=[]; finalAggregatedBlock=null;
+  consensusProgress=0;
+
+  const clsCenters = getClusterCenters();
+  const comPos     = getCommitteePositions();
+  const scPos      = getSCPosition();
+
+  // Worker nodes
+  let id=0;
+  for(let c=0;c<4;c++){
+    for(let i=0;i<5;i++){
+      const angle=(i/5)*Math.PI*2 + Math.random()*0.38;
+      const r=48 + Math.random()*20;
       nodes.push({
-        id: id++,
-        cluster: c,
-        x: clusterCenters[c].x + Math.cos(angle)*r,
-        y: clusterCenters[c].y + Math.sin(angle)*r,
-        tx: 0, ty: 0, // target
-        state: 'idle', // idle|training|sending|verifying|malicious|offline
-        reputation: 50 + Math.floor(Math.random()*50),
-        isCH: false,
-        isCCM: false,
-        isMalicious: false,
-        isOffline: false,
-        glowIntensity: 0,
-        pulsePhase: Math.random()*Math.PI*2,
-        accuracy: 0.4 + Math.random()*0.3,
-        loss: 0.5 + Math.random()*0.5,
-        updateSent: false,
-        rewardAnim: 0,
-        label: `N${id}`,
+        id:id++, cluster:c, type:'worker',
+        x:clsCenters[c].x+Math.cos(angle)*r,
+        y:clsCenters[c].y+Math.sin(angle)*r,
+        state:'idle',
+        reputation:50+Math.floor(Math.random()*50),
+        isCH:false, isMalicious:false, isOffline:false,
+        glowIntensity:0, pulsePhase:Math.random()*Math.PI*2,
+        accuracy:0.42+Math.random()*0.28, loss:0.5+Math.random()*0.5,
+        rewardAnim:0, validScore:0,
       });
     }
   }
 
-  // Mark malicious nodes if attack mode
-  if (attackMode) {
-    const malNodes = [2, 7, 13];
-    malNodes.forEach(i => { if(nodes[i]) nodes[i].isMalicious = true; });
-  }
+  if(attackMode) [2,7,13].forEach(i=>{if(nodes[i]) nodes[i].isMalicious=true;});
 
-  // Will elect CH and CCM later
+  // Committee nodes
+  comPos.forEach((p,i)=>{
+    committeeNodes.push({
+      id:100+i, type:'committee',
+      x:p.x, y:p.y,
+      state:'idle', reputation:92+i*3,
+      glowIntensity:0.5, pulsePhase:i*Math.PI*0.67,
+      validScore:0, voteDisplayT:0, voteCast:false, voteValue:0,
+      label:'V'+(i+1), syncPulse:0, syncRing:0,
+    });
+  });
+
+  // Smart Contract node
+  scNode={
+    id:200, type:'sc',
+    x:scPos.x, y:scPos.y,
+    state:'idle', glowIntensity:0.2,
+    pulsePhase:0, rewardAnim:0, activationT:0,
+  };
 }
 
-function electClusterHeads() {
-  for (let c = 0; c < 4; c++) {
-    const cluster = nodes.filter(n => n.cluster === c && !n.isMalicious && !n.isOffline);
-    if (!cluster.length) continue;
-    cluster.sort((a,b) => b.reputation - a.reputation);
-    cluster[0].isCH = true;
-    cluster[0].reputation = Math.min(100, cluster[0].reputation + 10);
-  }
-}
-
-function electCCM() {
-  const eligible = nodes.filter(n => !n.isMalicious && !n.isOffline);
-  eligible.sort((a,b) => b.reputation - a.reputation);
-  eligible.slice(0, CCM_COUNT).forEach(n => { n.isCCM = true; n.state = 'verifying'; });
-}
-
-// ─── PARTICLES ───
-function spawnParticle(x, y, color, vx, vy, life) {
-  particles.push({ x, y, vx, vy, color, life, maxLife: life, size: 2+Math.random()*2 });
-}
-
-function spawnGradientParticles(node) {
-  for (let i = 0; i < 3; i++) {
-    const angle = Math.random()*Math.PI*2;
-    const speed = 0.5 + Math.random()*1.5;
-    spawnParticle(node.x, node.y, CLUSTER_COLORS[node.cluster],
-      Math.cos(angle)*speed, Math.sin(angle)*speed, 60+Math.random()*40);
+function electClusterHeads(){
+  nodes.forEach(n=>n.isCH=false);
+  for(let c=0;c<4;c++){
+    const cl=nodes.filter(n=>n.cluster===c&&!n.isMalicious&&!n.isOffline);
+    if(!cl.length) continue;
+    cl.sort((a,b)=>b.reputation-a.reputation);
+    cl[0].isCH=true; cl[0].reputation=Math.min(100,cl[0].reputation+10);
   }
 }
 
-function spawnNoiseParticles(node) {
-  for (let i = 0; i < 5; i++) {
-    const angle = Math.random()*Math.PI*2;
-    const r = 10+Math.random()*20;
-    spawnParticle(
-      node.x + Math.cos(angle)*r,
-      node.y + Math.sin(angle)*r,
-      '#ff6b35', Math.cos(angle)*0.3, Math.sin(angle)*0.3, 40);
+// ── PARTICLES ────────────────────────────────────────────────────
+function spawnParticle(x,y,color,vx,vy,life,size){
+  particles.push({x,y,vx,vy,color,life,maxLife:life,size:size||2+Math.random()*2});
+}
+function spawnGradientParticles(n){
+  for(let i=0;i<3;i++){
+    const a=Math.random()*Math.PI*2, s=0.6+Math.random()*1.4;
+    spawnParticle(n.x,n.y,CLUSTER_COLORS[n.cluster],Math.cos(a)*s,Math.sin(a)*s,55+Math.random()*35);
+  }
+}
+function spawnNoiseParticles(n){
+  for(let i=0;i<5;i++){
+    const a=Math.random()*Math.PI*2, r=10+Math.random()*18;
+    spawnParticle(n.x+Math.cos(a)*r,n.y+Math.sin(a)*r,'#ff6b35',Math.cos(a)*0.28,Math.sin(a)*0.28,38);
   }
 }
 
-// ─── PACKETS ───
-function sendPacket(from, to, color) {
-  packets.push({ x:from.x, y:from.y, tx:to.x, ty:to.y, color, progress:0, speed:0.02+Math.random()*0.02 });
+// ── PACKETS ──────────────────────────────────────────────────────
+function sendPacket(from,to,color,opts){
+  opts=opts||{};
+  packets.push({
+    x:from.x, y:from.y, tx:to.x, ty:to.y,
+    color, progress:0,
+    speed:opts.speed||0.018+Math.random()*0.016,
+    size:opts.size||3, icon:opts.icon||null,
+    encrypted:!!opts.encrypted, trail:[],
+  });
 }
 
-// ─── DRAW ───
-function resize() {
-  const rect = document.getElementById('topology-panel').getBoundingClientRect();
-  canvas.width = rect.width;
-  canvas.height = rect.height;
+function sendShamirFragments(from){
+  committeeNodes.forEach((cn,i)=>{
+    setTimeout(()=>{
+      packets.push({
+        x:from.x, y:from.y, tx:cn.x, ty:cn.y,
+        color:CC_GOLD, progress:0,
+        speed:0.014+Math.random()*0.014,
+        size:3.5, icon:'◈', encrypted:true, trail:[],
+      });
+    }, i*180);
+  });
 }
 
-function drawEdge(a, b, alpha, color, width) {
-  ctx.save();
-  ctx.strokeStyle = color || `rgba(0,200,255,${alpha})`;
-  ctx.lineWidth = width || 0.5;
-  ctx.beginPath();
-  ctx.moveTo(a.x, a.y);
-  ctx.lineTo(b.x, b.y);
-  ctx.stroke();
-  ctx.restore();
+function spawnRewardToken(from,to,color){
+  rewardTokens.push({x:from.x,y:from.y,tx:to.x,ty:to.y,t:0,color:color||CC_GOLD});
 }
 
-// ─── COCO FULL MESH BUILDER ───
-function buildFullMesh() {
-  cocoEdges = [];
-  for (let c = 0; c < 4; c++) {
-    const cluster = nodes.filter(n => n.cluster === c && !n.isOffline);
-    for (let i = 0; i < cluster.length; i++) {
-      for (let j = i + 1; j < cluster.length; j++) {
-        cocoEdges.push({
-          a: cluster[i], b: cluster[j],
-          alpha: 0, targetAlpha: 0.85,
-          width: 1.5,
-          color: COCO_FULL_COLOR,
-          pulseOffset: Math.random(),
-          surviving: true,
-          fadeDir: 1,  // 1=fade in, -1=fade out
-        });
-      }
+// ── CoCo MESH ────────────────────────────────────────────────────
+function buildFullMesh(){
+  cocoEdges=[];
+  for(let c=0;c<4;c++){
+    const cl=nodes.filter(n=>n.cluster===c&&!n.isOffline);
+    for(let i=0;i<cl.length;i++) for(let j=i+1;j<cl.length;j++){
+      cocoEdges.push({a:cl[i],b:cl[j],alpha:0,targetAlpha:0.82,width:1.4,color:COCO_FULL,pulseOffset:Math.random(),surviving:true});
     }
   }
 }
 
-// ─── COCO OPTIMISATION ───
-// Decide which edges survive (sparse spanning tree + random kept edges)
-function optimizeMesh() {
-  // Build per-cluster spanning tree edges (minimum by "consensus distance" = index diff)
-  for (let c = 0; c < 4; c++) {
-    const clEdges = cocoEdges.filter(e => e.a.cluster === c && e.b.cluster === c);
-    // Sort by distance (proxy for consensus distance)
-    clEdges.sort((e1,e2) =>
-      Math.hypot(e1.a.x-e1.b.x,e1.a.y-e1.b.y) - Math.hypot(e2.a.x-e2.b.x,e2.a.y-e2.b.y));
-    // Keep ~40% of edges (closer ones survive); rest fade
-    const keepCount = Math.max(Math.ceil(clEdges.length * 0.38), 2);
-    clEdges.forEach((e, i) => {
-      if (i < keepCount) {
-        e.surviving = true;
-        e.targetAlpha = 1.0;
-        e.width = 2.2;
-        e.color = COCO_OPT_COLOR;
-      } else {
-        e.surviving = false;
-        e.targetAlpha = 0;
-        e.color = COCO_DEAD_COLOR;
-      }
+function optimizeMesh(){
+  for(let c=0;c<4;c++){
+    const e=cocoEdges.filter(e=>e.a.cluster===c&&e.b.cluster===c);
+    e.sort((a,b)=>Math.hypot(a.a.x-a.b.x,a.a.y-a.b.y)-Math.hypot(b.a.x-b.b.x,b.a.y-b.b.y));
+    const keep=Math.max(Math.ceil(e.length*0.38),2);
+    e.forEach((ed,i)=>{
+      if(i<keep){ed.surviving=true;ed.targetAlpha=1.0;ed.width=2.1;ed.color=COCO_OPT;}
+      else{ed.surviving=false;ed.targetAlpha=0;ed.color=COCO_DEAD;}
     });
   }
-  cocoOptProgress = 0;
-  animateOptimization();
-}
-
-function animateOptimization() {
+  cocoOptProgress=0;
   clearInterval(cocoOptTimer);
-  cocoOptTimer = setInterval(() => {
-    cocoOptProgress = Math.min(1, cocoOptProgress + 0.018);
-    cocoEdges.forEach(e => {
-      const diff = e.targetAlpha - e.alpha;
-      // Dead edges fade faster; surviving edges brighten slower for drama
-      const speed = e.surviving ? 0.025 : 0.04;
-      e.alpha += diff * speed * (e.surviving ? 1 : 1.5);
-      if (Math.abs(diff) < 0.002) e.alpha = e.targetAlpha;
+  cocoOptTimer=setInterval(()=>{
+    cocoOptProgress=Math.min(1,cocoOptProgress+0.018);
+    cocoEdges.forEach(e=>{
+      e.alpha+=(e.targetAlpha-e.alpha)*(e.surviving?0.025:0.04)*(e.surviving?1:1.6);
+      if(Math.abs(e.targetAlpha-e.alpha)<0.002) e.alpha=e.targetAlpha;
     });
-    // Spawn mesh pulse particles on surviving bright edges
-    if (cocoOptProgress < 1) {
-      cocoEdges.filter(e => e.surviving && Math.random() < 0.12).forEach(e => {
-        spawnMeshPulse(e.a, e.b, COCO_OPT_COLOR);
+    if(cocoOptProgress<1) cocoEdges.filter(e=>e.surviving&&Math.random()<0.09).forEach(e=>spawnMeshPulse(e.a,e.b,COCO_OPT));
+    if(cocoOptProgress>=1){clearInterval(cocoOptTimer);topoMode='optimized';}
+  },30);
+}
+
+function spawnMeshPulse(from,to,color){
+  meshPulseParticles.push({x:from.x,y:from.y,tx:to.x,ty:to.y,color,t:0,speed:0.026+Math.random()*0.018});
+}
+
+function glowLine(ax,ay,bx,by,color,coreW,glowAlpha,alpha){
+  ctx.save();
+  ctx.strokeStyle=color+Math.round(glowAlpha*255).toString(16).padStart(2,'0');
+  ctx.lineWidth=coreW*5; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(bx,by); ctx.stroke();
+  ctx.strokeStyle=color+Math.round(alpha*255).toString(16).padStart(2,'0');
+  ctx.lineWidth=coreW;
+  ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(bx,by); ctx.stroke();
+  ctx.restore();
+}
+
+function drawCocoEdges(){
+  const T=Date.now()/1000;
+  cocoEdges.forEach(e=>{
+    if(e.alpha<0.01) return;
+    const pulse=e.surviving?0.7+0.3*Math.sin(T*3+e.pulseOffset*Math.PI*2):1;
+    const fa=e.alpha*pulse;
+    if(e.surviving&&fa>0.25){
+      ctx.save();
+      ctx.strokeStyle=e.color+Math.round(fa*0.14*255).toString(16).padStart(2,'0');
+      ctx.lineWidth=e.width*7; ctx.lineCap='round';
+      ctx.beginPath(); ctx.moveTo(e.a.x,e.a.y); ctx.lineTo(e.b.x,e.b.y); ctx.stroke();
+      ctx.strokeStyle=e.color+Math.round(fa*0.30*255).toString(16).padStart(2,'0');
+      ctx.lineWidth=e.width*3;
+      ctx.beginPath(); ctx.moveTo(e.a.x,e.a.y); ctx.lineTo(e.b.x,e.b.y); ctx.stroke();
+      ctx.restore();
+    }
+    ctx.save();
+    ctx.strokeStyle=e.color+Math.round(fa*255).toString(16).padStart(2,'0');
+    ctx.lineWidth=e.surviving?e.width:0.5; ctx.lineCap='round';
+    ctx.shadowColor=e.surviving?e.color:'transparent'; ctx.shadowBlur=e.surviving?7:0;
+    ctx.beginPath(); ctx.moveTo(e.a.x,e.a.y); ctx.lineTo(e.b.x,e.b.y); ctx.stroke();
+    ctx.restore();
+  });
+  meshPulseParticles=meshPulseParticles.filter(p=>p.t<1);
+  meshPulseParticles.forEach(p=>{
+    p.t+=p.speed;
+    const px=p.x+(p.tx-p.x)*p.t, py=p.y+(p.ty-p.y)*p.t;
+    const alpha=Math.sin(p.t*Math.PI);
+    ctx.save(); ctx.beginPath(); ctx.arc(px,py,3,0,Math.PI*2);
+    ctx.fillStyle=p.color; ctx.shadowColor=p.color; ctx.shadowBlur=10;
+    ctx.globalAlpha=alpha; ctx.fill(); ctx.restore();
+  });
+}
+
+function drawChannels(){
+  const T=Date.now()/1000;
+  if(currentPhase>=7&&currentPhase<=11){
+    const chs=nodes.filter(n=>n.isCH);
+    chs.forEach(ch=>{
+      committeeNodes.forEach(cn=>{
+        const p=0.22+0.18*Math.sin(T*2.5+ch.id*0.7);
+        glowLine(ch.x,ch.y,cn.x,cn.y,CC_GOLD,0.8,p*0.18,p);
       });
+    });
+  }
+  if(currentPhase===9||currentPhase===10){
+    for(let i=0;i<committeeNodes.length;i++){
+      for(let j=i+1;j<committeeNodes.length;j++){
+        const a=committeeNodes[i], b=committeeNodes[j];
+        const p=0.38+0.35*Math.sin(T*4+i+j);
+        glowLine(a.x,a.y,b.x,b.y,CC_PURP,1.1,p*0.2,p);
+      }
     }
-    if (cocoOptProgress >= 1) {
-      clearInterval(cocoOptTimer);
-      topoMode = 'optimized';
-    }
-  }, 30);
+  }
+  if(currentPhase>=11&&scNode){
+    committeeNodes.forEach(cn=>{
+      const p=0.32+0.28*Math.sin(T*3+cn.pulsePhase);
+      glowLine(cn.x,cn.y,scNode.x,scNode.y,CC_PURP,0.9,p*0.18,p);
+    });
+  }
 }
 
-function spawnMeshPulse(from, to, color) {
-  meshPulseParticles.push({ x:from.x, y:from.y, tx:to.x, ty:to.y, color, t:0, speed:0.03+Math.random()*0.02 });
-}
-
-// Draw all coco edges with bloom effect
-function drawCocoEdges() {
-  const t = Date.now() / 1000;
-
-  cocoEdges.forEach(e => {
-    if (e.alpha < 0.01) return;
-    const pulse = e.surviving
-      ? 0.7 + 0.3 * Math.sin(t * 3 + e.pulseOffset * Math.PI * 2)
-      : 1.0;
-    const finalAlpha = e.alpha * pulse;
-
-    // Bloom pass 1 — wide soft glow
-    if (e.surviving && e.alpha > 0.3) {
-      ctx.save();
-      ctx.strokeStyle = `${e.color}${Math.round(finalAlpha * 0.18 * 255).toString(16).padStart(2,'0')}`;
-      ctx.lineWidth = e.width * 6;
-      ctx.lineCap = 'round';
-      ctx.beginPath();
-      ctx.moveTo(e.a.x, e.a.y);
-      ctx.lineTo(e.b.x, e.b.y);
-      ctx.stroke();
-      ctx.restore();
-
-      // Bloom pass 2 — medium glow
-      ctx.save();
-      ctx.strokeStyle = `${e.color}${Math.round(finalAlpha * 0.35 * 255).toString(16).padStart(2,'0')}`;
-      ctx.lineWidth = e.width * 3;
-      ctx.lineCap = 'round';
-      ctx.beginPath();
-      ctx.moveTo(e.a.x, e.a.y);
-      ctx.lineTo(e.b.x, e.b.y);
-      ctx.stroke();
-      ctx.restore();
-    }
-
-    // Core line
+function drawZoneLabels(){
+  const W=canvas.width, H=canvas.height;
+  function zLabel(txt,x,y,color,sub){
     ctx.save();
-    ctx.strokeStyle = `${e.color}${Math.round(finalAlpha * 255).toString(16).padStart(2,'0')}`;
-    ctx.lineWidth = e.surviving ? e.width : 0.5;
-    ctx.lineCap = 'round';
-    ctx.shadowColor = e.surviving ? e.color : 'transparent';
-    ctx.shadowBlur = e.surviving ? 8 : 0;
-    ctx.beginPath();
-    ctx.moveTo(e.a.x, e.a.y);
-    ctx.lineTo(e.b.x, e.b.y);
-    ctx.stroke();
+    ctx.font='10px Share Tech Mono'; ctx.textAlign='center';
+    const tw=ctx.measureText(txt).width;
+    ctx.fillStyle='rgba(2,4,9,0.78)';
+    ctx.beginPath(); ctx.roundRect(x-tw/2-10,y-9,tw+20,sub?32:18,2); ctx.fill();
+    ctx.strokeStyle=color+'40'; ctx.lineWidth=0.7; ctx.stroke();
+    ctx.fillStyle=color; ctx.shadowColor=color; ctx.shadowBlur=6; ctx.textBaseline='middle';
+    ctx.fillText(txt,x,y);
+    if(sub){
+      ctx.font='9px Share Tech Mono'; ctx.fillStyle=color+'80'; ctx.shadowBlur=0;
+      ctx.fillText(sub,x,y+14);
+    }
     ctx.restore();
+  }
+  const cc=getClusterCenters();
+  ['CLUSTER A','CLUSTER B','CLUSTER C','CLUSTER D'].forEach((lbl,i)=>{
+    zLabel(lbl, cc[i].x, cc[i].y-72, CLUSTER_COLORS[i], 'WORKER NODES');
   });
+  zLabel('COMMITTEE CONSENSUS LAYER', W/2, H*0.12, CC_GOLD, '◆ VALIDATORS  —  2/3 THRESHOLD VOTING');
+  zLabel('SMART CONTRACT', scNode?scNode.x:W/2, scNode?scNode.y-28:H*0.06, CC_PURP, 'REWARD ENGINE');
 
-  // Draw mesh pulse particles
-  meshPulseParticles = meshPulseParticles.filter(p => p.t < 1);
-  meshPulseParticles.forEach(p => {
-    p.t += p.speed;
-    const px = p.x + (p.tx - p.x) * p.t;
-    const py = p.y + (p.ty - p.y) * p.t;
-    const alpha = Math.sin(p.t * Math.PI);
+  if(currentPhase>=7){
+    const divY=H*0.42;
     ctx.save();
-    ctx.beginPath();
-    ctx.arc(px, py, 3, 0, Math.PI * 2);
-    ctx.fillStyle = p.color;
-    ctx.shadowColor = p.color;
-    ctx.shadowBlur = 12;
-    ctx.globalAlpha = alpha;
-    ctx.fill();
+    ctx.strokeStyle='rgba(255,179,0,0.1)';
+    ctx.lineWidth=1; ctx.setLineDash([7,12]);
+    ctx.beginPath(); ctx.moveTo(18,divY); ctx.lineTo(W-18,divY); ctx.stroke();
     ctx.restore();
-  });
+    zLabel('↑  CH → COMMITTEE UPLOAD CHANNEL  ↑', W/2, divY, CC_GOLD);
+  }
 }
 
-// Label overlay for COCO phase
-function drawCocoLabel() {
-  if (topoMode === 'default') return;
-  ctx.save();
-  const W = canvas.width, H = canvas.height;
-  const label = topoMode === 'fullmesh'
-    ? '◈ BEFORE CoCo: FULL TOPOLOGY MESH'
-    : topoMode === 'optimizing'
-    ? `◈ CoCo OPTIMIZING...  ${Math.round(cocoOptProgress*100)}%`
-    : '◈ AFTER CoCo: OPTIMIZED SPARSE TOPOLOGY';
-  const color = topoMode === 'fullmesh' ? '#00e5ff' : topoMode === 'optimizing' ? '#ffd700' : '#00ff88';
+function drawNode(n){
+  const T=Date.now()/1000;
+  const pulse=Math.sin(T*2+n.pulsePhase)*0.3+0.7;
+  const color=n.isOffline?'#333':n.isMalicious?'#ff2244':CLUSTER_COLORS[n.cluster];
+  const R=n.isCH?13:9;
 
-  // Background pill
-  ctx.font = '10px Share Tech Mono';
-  const tw = ctx.measureText(label).width;
-  ctx.fillStyle = 'rgba(2,4,9,0.8)';
-  ctx.beginPath();
-  ctx.roundRect(W/2 - tw/2 - 12, 16, tw + 24, 22, 3);
-  ctx.fill();
-  ctx.strokeStyle = color + '66';
-  ctx.lineWidth = 1;
-  ctx.stroke();
-
-  ctx.fillStyle = color;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.shadowColor = color;
-  ctx.shadowBlur = 10;
-  ctx.fillText(label, W/2, 27);
-
-  // Bandwidth reduction badge (after opt)
-  if (topoMode === 'optimized') {
-    const bw = `↓ BANDWIDTH  −${Math.round(compression * 18)}%   LINKS ${cocoEdges.filter(e=>e.surviving).length}/${cocoEdges.length}`;
-    ctx.font = '9px Share Tech Mono';
-    const bw2 = ctx.measureText(bw).width;
-    ctx.fillStyle = 'rgba(2,4,9,0.8)';
-    ctx.beginPath();
-    ctx.roundRect(W/2 - bw2/2 - 10, 42, bw2 + 20, 18, 3);
-    ctx.fill();
-    ctx.strokeStyle = '#00ff8844';
-    ctx.lineWidth = 1;
-    ctx.stroke();
-    ctx.fillStyle = '#00ff88';
-    ctx.shadowColor = '#00ff88';
-    ctx.shadowBlur = 6;
-    ctx.fillText(bw, W/2, 51);
+  if(!n.isOffline&&n.glowIntensity>0){
+    const gr=ctx.createRadialGradient(n.x,n.y,0,n.x,n.y,R*3.5);
+    gr.addColorStop(0,color+'3a'); gr.addColorStop(1,'transparent');
+    ctx.save(); ctx.fillStyle=gr; ctx.beginPath(); ctx.arc(n.x,n.y,R*3.5,0,Math.PI*2); ctx.fill(); ctx.restore();
   }
-  ctx.restore();
-}
-
-function drawNode(n) {
-  const t = Date.now()/1000;
-  const pulse = Math.sin(t*2 + n.pulsePhase)*0.3 + 0.7;
-  const color = n.isOffline ? '#333' : n.isMalicious ? '#ff2244' : CLUSTER_COLORS[n.cluster];
-  const baseR = n.isCH ? 12 : n.isCCM ? 11 : 8;
-  const r = baseR;
-
-  // Glow
-  if (!n.isOffline && n.glowIntensity > 0) {
-    const grad = ctx.createRadialGradient(n.x,n.y,0,n.x,n.y,r*3);
-    grad.addColorStop(0, color.replace(')',`, ${n.glowIntensity*0.6})`).replace('rgb','rgba'));
-    grad.addColorStop(1, 'transparent');
-    ctx.save();
-    ctx.fillStyle = grad;
-    ctx.beginPath();
-    ctx.arc(n.x, n.y, r*3, 0, Math.PI*2);
-    ctx.fill();
-    ctx.restore();
+  if(n.state==='training'){
+    ctx.save(); ctx.strokeStyle=`rgba(0,255,136,${pulse*0.55})`; ctx.lineWidth=1.4;
+    ctx.beginPath(); ctx.arc(n.x,n.y,R+4+Math.sin(T*3)*3,0,Math.PI*2); ctx.stroke(); ctx.restore();
   }
-
-  // State rings
-  if (n.state === 'training') {
-    ctx.save();
-    ctx.strokeStyle = `rgba(0,255,136,${pulse*0.6})`;
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.arc(n.x, n.y, r+4+Math.sin(t*3)*3, 0, Math.PI*2);
-    ctx.stroke();
-    ctx.restore();
-  }
-  if (n.state === 'sending') {
-    ctx.save();
-    ctx.strokeStyle = `rgba(0,200,255,${pulse})`;
-    ctx.lineWidth = 1;
+  if(n.state==='sending'){
+    ctx.save(); ctx.strokeStyle=`rgba(0,200,255,${pulse})`; ctx.lineWidth=1;
     ctx.setLineDash([3,3]);
-    ctx.beginPath();
-    ctx.arc(n.x, n.y, r+6, 0, Math.PI*2);
-    ctx.stroke();
-    ctx.restore();
+    ctx.beginPath(); ctx.arc(n.x,n.y,R+6,0,Math.PI*2); ctx.stroke(); ctx.restore();
   }
-  if (n.state === 'verifying') {
-    ctx.save();
-    ctx.strokeStyle = `rgba(168,85,247,${pulse})`;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(n.x, n.y, r+5, 0, Math.PI*2);
-    ctx.stroke();
-    ctx.restore();
-  }
-
-  // Node circle
   ctx.save();
-  ctx.beginPath();
-  ctx.arc(n.x, n.y, r, 0, Math.PI*2);
-  ctx.fillStyle = n.isOffline ? '#1a1a1a' : n.isMalicious ? 'rgba(255,34,68,0.3)' : `${color}22`;
+  ctx.beginPath(); ctx.arc(n.x,n.y,R,0,Math.PI*2);
+  ctx.fillStyle=n.isOffline?'#111':n.isMalicious?'rgba(255,34,68,0.22)':`${color}1c`;
   ctx.fill();
-  ctx.strokeStyle = n.isOffline ? '#333' : color;
-  ctx.lineWidth = n.isCH || n.isCCM ? 2 : 1;
-  ctx.stroke();
+  ctx.strokeStyle=n.isOffline?'#333':color;
+  ctx.lineWidth=n.isCH?2:1;
+  ctx.shadowColor=n.isOffline?'transparent':color; ctx.shadowBlur=n.isCH?7:3;
+  ctx.stroke(); ctx.restore();
+
+  ctx.save(); ctx.textAlign='center'; ctx.textBaseline='middle';
+  if(n.isCH){ ctx.font='12px Orbitron'; ctx.fillStyle=color; ctx.shadowColor=color; ctx.shadowBlur=5; ctx.fillText('★',n.x,n.y); }
+  else if(n.isMalicious){ ctx.font='11px Arial'; ctx.fillStyle='#ff2244'; ctx.fillText('✕',n.x,n.y); }
   ctx.restore();
 
-  // CCM diamond
-  if (n.isCCM) {
-    ctx.save();
-    ctx.fillStyle = '#fff';
-    ctx.font = `${8}px Orbitron`;
-    ctx.textAlign='center';
-    ctx.textBaseline='middle';
-    ctx.fillText('◆', n.x, n.y);
-    ctx.restore();
-  } else if (n.isCH) {
-    ctx.save();
-    ctx.fillStyle = color;
-    ctx.font = `${9}px Orbitron`;
-    ctx.textAlign='center';
-    ctx.textBaseline='middle';
-    ctx.fillText('★', n.x, n.y);
-    ctx.restore();
-  } else if (n.isMalicious) {
-    ctx.save();
-    ctx.fillStyle = '#ff2244';
-    ctx.font = `${8}px Arial`;
-    ctx.textAlign='center';
-    ctx.textBaseline='middle';
-    ctx.fillText('✕', n.x, n.y);
-    ctx.restore();
+  if(!n.isOffline){
+    const bw=17;
+    ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.fillRect(n.x-bw/2,n.y+R+3,bw,2);
+    ctx.fillStyle=n.reputation>70?'#00ff88':n.reputation>40?'#ffd700':'#ff2244';
+    ctx.fillRect(n.x-bw/2,n.y+R+3,bw*(n.reputation/100),2);
   }
 
-  // Reputation bar
-  if (!n.isOffline) {
-    const bw = 20, bh = 2;
-    ctx.fillStyle = 'rgba(0,0,0,0.5)';
-    ctx.fillRect(n.x-bw/2, n.y+r+3, bw, bh);
-    const rColor = n.reputation>70?'#00ff88':n.reputation>40?'#ffd700':'#ff2244';
-    ctx.fillStyle = rColor;
-    ctx.fillRect(n.x-bw/2, n.y+r+3, bw*(n.reputation/100), bh);
-  }
-
-  // Reward anim
-  if (n.rewardAnim > 0) {
-    ctx.save();
-    ctx.globalAlpha = n.rewardAnim;
-    ctx.fillStyle = '#ffd700';
-    ctx.font = '10px Arial';
-    ctx.textAlign = 'center';
-    ctx.fillText('+⬡', n.x, n.y - r - 10 - (1-n.rewardAnim)*15);
+  if(n.rewardAnim>0){
+    ctx.save(); ctx.globalAlpha=n.rewardAnim;
+    ctx.font='12px Arial'; ctx.textAlign='center';
+    ctx.fillStyle='#ffd700'; ctx.shadowColor='#ffd700'; ctx.shadowBlur=5;
+    ctx.fillText('+⬡',n.x,n.y-R-7-(1-n.rewardAnim)*12);
     ctx.restore();
-    n.rewardAnim -= 0.02;
-    if (n.rewardAnim < 0) n.rewardAnim = 0;
+    n.rewardAnim-=0.016; if(n.rewardAnim<0) n.rewardAnim=0;
   }
 }
 
-function draw() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+function drawCommitteeNode(cn){
+  const T=Date.now()/1000;
+  const pulse=Math.sin(T*1.8+cn.pulsePhase)*0.32+0.68;
+  const R=19;
+  ctx.save();
+  ctx.translate(cn.x,cn.y); ctx.rotate(T*0.35*(cn.id%2?1:-1));
+  ctx.strokeStyle=`rgba(255,179,0,${0.14*pulse})`;
+  ctx.lineWidth=7; ctx.setLineDash([5,8]);
+  ctx.beginPath(); ctx.arc(0,0,R+14,0,Math.PI*2); ctx.stroke();
+  ctx.restore();
+  const halo=ctx.createRadialGradient(cn.x,cn.y,0,cn.x,cn.y,R*3);
+  halo.addColorStop(0,`rgba(255,179,0,${0.16*cn.glowIntensity})`);
+  halo.addColorStop(1,'transparent');
+  ctx.save(); ctx.fillStyle=halo;
+  ctx.beginPath(); ctx.arc(cn.x,cn.y,R*3,0,Math.PI*2); ctx.fill(); ctx.restore();
 
-  // Cluster halos
-  const clusterCenters = getClusterCenters();
-  clusterCenters.forEach((c, i) => {
-    const grad = ctx.createRadialGradient(c.x,c.y,0,c.x,c.y,80);
-    grad.addColorStop(0, `${CLUSTER_COLORS[i]}0a`);
-    grad.addColorStop(1, 'transparent');
-    ctx.fillStyle = grad;
-    ctx.beginPath();
-    ctx.arc(c.x, c.y, 80, 0, Math.PI*2);
-    ctx.fill();
+  ctx.save();
+  ctx.beginPath();
+  for(let i=0;i<8;i++){
+    const a=i/8*Math.PI*2-Math.PI/8;
+    if(i===0) ctx.moveTo(cn.x+Math.cos(a)*R,cn.y+Math.sin(a)*R);
+    else ctx.lineTo(cn.x+Math.cos(a)*R,cn.y+Math.sin(a)*R);
+  }
+  ctx.closePath();
+  const sg=ctx.createRadialGradient(cn.x,cn.y,0,cn.x,cn.y,R);
+  sg.addColorStop(0,'rgba(255,179,0,0.22)'); sg.addColorStop(1,'rgba(192,132,252,0.09)');
+  ctx.fillStyle=sg; ctx.fill();
+  ctx.strokeStyle=`rgba(255,179,0,${0.72*pulse})`;
+  ctx.lineWidth=2; ctx.shadowColor=CC_GOLD; ctx.shadowBlur=13;
+  ctx.stroke(); ctx.restore();
+
+  ctx.save();
+  ctx.font='15px Orbitron'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillStyle=`rgba(255,179,0,${0.9*pulse})`; ctx.shadowColor=CC_GOLD; ctx.shadowBlur=9;
+  ctx.fillText('◆',cn.x,cn.y-1); ctx.restore();
+
+  ctx.save();
+  ctx.font='bold 10px Orbitron'; ctx.textAlign='center'; ctx.textBaseline='top';
+  ctx.fillStyle=`rgba(255,179,0,0.78)`; ctx.shadowColor=CC_GOLD; ctx.shadowBlur=5;
+  ctx.fillText('VALIDATOR',cn.x,cn.y+R+6);
+  ctx.font='10px Share Tech Mono'; ctx.fillStyle=`rgba(255,179,0,0.5)`; ctx.shadowBlur=0;
+  ctx.fillText(cn.label,cn.x,cn.y+R+18); ctx.restore();
+
+  ctx.fillStyle='rgba(0,0,0,0.5)';
+  ctx.fillRect(cn.x-15,cn.y+R+30,30,2);
+  ctx.fillStyle=CC_GOLD;
+  ctx.fillRect(cn.x-15,cn.y+R+30,30*(cn.reputation/100),2);
+
+  if(cn.voteDisplayT>0){
+    ctx.save(); ctx.globalAlpha=Math.min(1,cn.voteDisplayT);
+    ctx.font='12px Orbitron'; ctx.textAlign='center';
+    ctx.fillStyle=cn.voteValue>0.5?'#00ff88':'#ff2244';
+    ctx.shadowColor=cn.voteValue>0.5?'#00ff88':'#ff2244'; ctx.shadowBlur=8;
+    ctx.fillText(cn.voteValue>0.5?'✓ VOTE':'✗ VOTE',cn.x,cn.y-R-12-(1-cn.voteDisplayT)*10);
+    ctx.restore();
+    cn.voteDisplayT-=0.011;
+  }
+
+  if(cn.syncPulse>0){
+    ctx.save(); ctx.globalAlpha=cn.syncPulse;
+    ctx.strokeStyle=CC_PURP; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.arc(cn.x,cn.y,R+(1-cn.syncPulse)*30,0,Math.PI*2); ctx.stroke();
+    ctx.restore();
+    cn.syncPulse=Math.max(0,cn.syncPulse-0.022);
+  }
+}
+
+function drawSCNode(){
+  if(!scNode) return;
+  const T=Date.now()/1000;
+  const pulse=Math.sin(T*2.2)*0.28+0.72;
+  const R=14;
+
+  const halo=ctx.createRadialGradient(scNode.x,scNode.y,0,scNode.x,scNode.y,R*4);
+  halo.addColorStop(0,`rgba(192,132,252,${0.12*scNode.glowIntensity})`); halo.addColorStop(1,'transparent');
+  ctx.save(); ctx.fillStyle=halo; ctx.beginPath(); ctx.arc(scNode.x,scNode.y,R*4,0,Math.PI*2); ctx.fill(); ctx.restore();
+
+  ctx.save();
+  ctx.beginPath();
+  for(let i=0;i<6;i++){
+    const a=i*Math.PI/3;
+    if(i===0) ctx.moveTo(scNode.x+Math.cos(a)*R,scNode.y+Math.sin(a)*R);
+    else ctx.lineTo(scNode.x+Math.cos(a)*R,scNode.y+Math.sin(a)*R);
+  }
+  ctx.closePath();
+  const hg=ctx.createRadialGradient(scNode.x,scNode.y,0,scNode.x,scNode.y,R);
+  hg.addColorStop(0,'rgba(192,132,252,0.22)'); hg.addColorStop(1,'rgba(168,85,247,0.06)');
+  ctx.fillStyle=hg; ctx.fill();
+  ctx.strokeStyle=`rgba(192,132,252,${0.7*pulse})`;
+  ctx.lineWidth=2; ctx.shadowColor=CC_PURP; ctx.shadowBlur=12;
+  ctx.stroke(); ctx.restore();
+
+  ctx.save(); ctx.font='14px Orbitron'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillStyle=`rgba(192,132,252,${0.9*pulse})`; ctx.shadowColor=CC_PURP; ctx.shadowBlur=8;
+  ctx.fillText('⬡',scNode.x,scNode.y); ctx.restore();
+
+  if(scNode.activationT>0){
+    ctx.save();
+    for(let i=0;i<6;i++){
+      const a=i*Math.PI/3;
+      const len=R+(1-scNode.activationT)*30;
+      ctx.strokeStyle=`rgba(192,132,252,${scNode.activationT*0.7})`;
+      ctx.lineWidth=1.5;
+      ctx.beginPath();
+      ctx.moveTo(scNode.x+Math.cos(a)*R,scNode.y+Math.sin(a)*R);
+      ctx.lineTo(scNode.x+Math.cos(a)*len,scNode.y+Math.sin(a)*len);
+      ctx.stroke();
+    }
+    ctx.restore();
+    scNode.activationT=Math.max(0,scNode.activationT-0.018);
+  }
+}
+
+function drawGlobalModelCore(){
+  if(!globalModelCore) return;
+  const gmc=globalModelCore;
+  const T=Date.now()/1000;
+  gmc.pulseT=(gmc.pulseT||0)+0.03;
+  const pulse=Math.sin(gmc.pulseT)*0.28+0.72;
+  gmc.alpha=Math.min(1,gmc.alpha+0.018);
+
+  ctx.save();
+  for(let ring=0;ring<3;ring++){
+    ctx.save(); ctx.translate(gmc.x,gmc.y);
+    ctx.rotate(T*(0.28+ring*0.18)*(ring%2?1:-1));
+    ctx.strokeStyle=`rgba(255,179,0,${(0.18+ring*0.08)*gmc.alpha*pulse})`;
+    ctx.lineWidth=1; ctx.setLineDash([4,7]);
+    ctx.beginPath(); ctx.arc(0,0,gmc.r+8+ring*9,0,Math.PI*2); ctx.stroke();
+    ctx.restore();
+  }
+  const grad=ctx.createRadialGradient(gmc.x,gmc.y,0,gmc.x,gmc.y,gmc.r);
+  grad.addColorStop(0,`rgba(255,220,80,${0.88*gmc.alpha})`);
+  grad.addColorStop(0.5,`rgba(255,179,0,${0.45*gmc.alpha})`);
+  grad.addColorStop(1,`rgba(255,100,0,${0.08*gmc.alpha})`);
+  ctx.fillStyle=grad; ctx.beginPath(); ctx.arc(gmc.x,gmc.y,gmc.r,0,Math.PI*2); ctx.fill();
+  ctx.font=`bold ${Math.round(gmc.r*0.68)}px Orbitron`;
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillStyle=`rgba(255,255,255,${gmc.alpha})`; ctx.shadowColor='#fff'; ctx.shadowBlur=9;
+  ctx.fillText('⬡',gmc.x,gmc.y);
+  ctx.font='10px Share Tech Mono'; ctx.shadowBlur=0;
+  ctx.fillStyle=`rgba(255,220,100,${gmc.alpha})`;
+  ctx.fillText('GLOBAL MODEL',gmc.x,gmc.y+gmc.r+12);
+  ctx.restore();
+}
+
+// ── VẼ 3 KHỐI PROPOSED TỪ COMMITTEE ──
+function drawCommitteeBlocks() {
+  committeeBlocks.forEach(b => {
+    if (b.movingToSC) {
+        b.t += 0.025; if(b.t>1) b.t=1;
+        b.x = b.startX + (b.tx - b.startX)*b.t;
+        b.y = b.startY + (b.ty - b.startY)*b.t;
+        b.scale = 1 - b.t * 0.4; // Thu nhỏ lại khi đến gần SC
+    } else {
+        b.alpha = Math.min(1, b.alpha + 0.05);
+        b.y += (b.ty - b.y) * 0.1; // Hiệu ứng nảy lơ lửng nhẹ
+    }
+    ctx.save();
+    ctx.translate(b.x, b.y); ctx.scale(b.scale, b.scale); ctx.globalAlpha = b.alpha;
+    const w=66, h=32;
+    ctx.fillStyle='rgba(255,179,0,0.15)'; ctx.strokeStyle='#ffb300';
+    ctx.lineWidth=1.5; ctx.shadowColor='#ffb300'; ctx.shadowBlur=10;
+    ctx.beginPath(); ctx.roundRect(-w/2, -h/2, w, h, 3); ctx.fill(); ctx.stroke();
+    ctx.font='bold 10px Share Tech Mono'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillStyle='#ffb300'; ctx.shadowBlur=0;
+    ctx.fillText('PROP-'+b.id, 0, -6);
+    ctx.font='9px Share Tech Mono'; ctx.fillStyle='rgba(255,179,0,0.6)';
+    ctx.fillText('0x'+b.hash, 0, 7);
+    ctx.restore();
+  });
+}
+
+// ── VẼ KHỐI BLOCK FINAL AGGREGATED (Bay từ SC qua phải) ──
+function drawFinalAggregatedBlock() {
+  if (finalAggregatedBlock) {
+    const fb = finalAggregatedBlock;
+    fb.t += 0.012;
+    if(fb.t>1) fb.t=1;
+    fb.x = fb.startX + (fb.tx - fb.startX)*fb.t;
+    fb.y = fb.startY + (fb.ty - fb.startY)*fb.t;
+    fb.scale = Math.min(1, fb.scale + 0.03);
+
+    if(fb.t > 0.85) fb.alpha = Math.max(0, 1 - (fb.t - 0.85)*6.6); // Mờ dần khi sát mép phải
+
+    ctx.save();
+    ctx.translate(fb.x, fb.y); ctx.scale(fb.scale, fb.scale); ctx.globalAlpha = fb.alpha;
+    const w=140, h=48;
+    ctx.fillStyle='rgba(0,255,136,0.15)'; ctx.strokeStyle='#00ff88';
+    ctx.lineWidth=2; ctx.shadowColor='#00ff88'; ctx.shadowBlur=15;
+    ctx.beginPath(); ctx.roundRect(-w/2, -h/2, w, h, 4); ctx.fill(); ctx.stroke();
+    ctx.font='bold 12px Share Tech Mono'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillStyle='#00ff88'; ctx.shadowBlur=0;
+    ctx.fillText('FINAL AGGREGATED BLOCK', 0, -8);
+    ctx.font='11px Share Tech Mono'; ctx.fillStyle='rgba(0,255,136,0.6)';
+    ctx.fillText('0x'+fb.hash, 0, 9);
+    ctx.restore();
+
+    if(fb.t >= 1) finalAggregatedBlock = null;
+  }
+}
+
+function drawRewardTokens(){
+  rewardTokens=rewardTokens.filter(r=>r.t<1);
+  rewardTokens.forEach(r=>{
+    r.t+=0.016;
+    const x=r.x+(r.tx-r.x)*r.t, y=r.y+(r.ty-r.y)*r.t;
+    const alpha=Math.sin(r.t*Math.PI);
+    ctx.save(); ctx.globalAlpha=alpha;
+    ctx.font='15px Orbitron'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillStyle=r.color; ctx.shadowColor=r.color; ctx.shadowBlur=7;
+    ctx.fillText('⬡',x,y); ctx.restore();
+  });
+}
+
+function drawConsensusMeter(){
+  if(currentPhase!==9) return;
+  const x=canvas.width-68, y=56;
+  ctx.save();
+  ctx.strokeStyle='rgba(255,255,255,0.07)'; ctx.lineWidth=5;
+  ctx.beginPath(); ctx.arc(x,y,28,0,Math.PI*2); ctx.stroke();
+  const col=consensusProgress>0.66?'#00ff88':'#ffd700';
+  ctx.strokeStyle=col; ctx.lineWidth=5;
+  ctx.shadowColor=col; ctx.shadowBlur=7;
+  ctx.beginPath(); ctx.arc(x,y,28,-Math.PI/2,-Math.PI/2+consensusProgress*Math.PI*2); ctx.stroke();
+  ctx.shadowBlur=0;
+  ctx.fillStyle=col; ctx.font='bold 11px Orbitron'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(Math.round(consensusProgress*100)+'%',x,y);
+  ctx.font='9px Share Tech Mono'; ctx.fillStyle='rgba(255,255,255,0.4)';
+  ctx.fillText('VOTES',x,y+15); ctx.restore();
+}
+
+function drawCocoLabel(){
+  if(topoMode==='default') return;
+  const W=canvas.width;
+  const txt=topoMode==='fullmesh'?'◈ BEFORE CoCo: FULL TOPOLOGY':topoMode==='optimizing'?`◈ CoCo OPTIMIZING... ${Math.round(cocoOptProgress*100)}%`:'◈ AFTER CoCo: OPTIMIZED SPARSE GRAPH';
+  const col=topoMode==='fullmesh'?'#00e5ff':topoMode==='optimizing'?'#ffd700':'#00ff88';
+  ctx.save();
+  ctx.font='12px Share Tech Mono'; ctx.textAlign='center';
+  const tw=ctx.measureText(txt).width;
+  ctx.fillStyle='rgba(2,4,9,0.8)';
+  ctx.beginPath(); ctx.roundRect(W/2-tw/2-14,14,tw+28,24,3); ctx.fill();
+  ctx.strokeStyle=col+'44'; ctx.lineWidth=0.8; ctx.stroke();
+  ctx.fillStyle=col; ctx.textBaseline='middle';
+  ctx.shadowColor=col; ctx.shadowBlur=7; ctx.fillText(txt,W/2,26.5);
+  if(topoMode==='optimized'){
+    const bw=`↓ BW −${Math.round(compression*17)}%   LINKS ${cocoEdges.filter(e=>e.surviving).length}/${cocoEdges.length}`;
+    ctx.font='11px Share Tech Mono';
+    const bw2=ctx.measureText(bw).width;
+    ctx.fillStyle='rgba(2,4,9,0.8)';
+    ctx.beginPath(); ctx.roundRect(W/2-bw2/2-12,40,bw2+24,20,3); ctx.fill();
+    ctx.strokeStyle='#00ff8832'; ctx.lineWidth=0.8; ctx.stroke();
+    ctx.fillStyle='#00ff88'; ctx.shadowColor='#00ff88'; ctx.shadowBlur=5;
+    ctx.fillText(bw,W/2,50);
+  }
+  ctx.restore();
+}
+
+function draw(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  getClusterCenters().forEach((c,i)=>{
+    const g=ctx.createRadialGradient(c.x,c.y,0,c.x,c.y,72);
+    g.addColorStop(0,CLUSTER_COLORS[i]+'09'); g.addColorStop(1,'transparent');
+    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(c.x,c.y,72,0,Math.PI*2); ctx.fill();
   });
 
-  // ── TOPOLOGY EDGES ──
-  if (topoMode !== 'default' && (topoShowFull || topoMode !== 'default')) {
-    // CoCo phase: draw full/optimized mesh edges
+  const cp=getCommitteePositions();
+  const cmx=cp[1].x, cmy=cp[1].y;
+  const cg=ctx.createRadialGradient(cmx,cmy,0,cmx,cmy,canvas.width*0.38);
+  cg.addColorStop(0,'rgba(255,179,0,0.035)'); cg.addColorStop(1,'transparent');
+  ctx.fillStyle=cg; ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  drawZoneLabels();
+
+  if(topoMode!=='default'){
     drawCocoEdges();
   } else {
-    // Standard phases: dim proximity-based intra-cluster edges
-    for (let i = 0; i < nodes.length; i++) {
-      for (let j = i+1; j < nodes.length; j++) {
-        const a = nodes[i], b = nodes[j];
-        if (a.cluster !== b.cluster) continue;
-        const dist = Math.hypot(a.x-b.x, a.y-b.y);
-        if (dist < 110) {
-          const alpha = 0.08 + (1-dist/110)*0.09;
-          drawEdge(a, b, alpha, CLUSTER_COLORS[a.cluster]+'1a', 0.6);
+    for(let i=0;i<nodes.length;i++){
+      for(let j=i+1;j<nodes.length;j++){
+        const a=nodes[i],b=nodes[j];
+        if(a.cluster!==b.cluster) continue;
+        const d=Math.hypot(a.x-b.x,a.y-b.y);
+        if(d<105){
+          const al=0.07+(1-d/105)*0.08;
+          ctx.save();
+          ctx.strokeStyle=CLUSTER_COLORS[a.cluster]+Math.round(al*255).toString(16).padStart(2,'0');
+          ctx.lineWidth=0.6; ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
+          ctx.restore();
         }
       }
     }
   }
 
-  // CH-CCM connections
-  const chs = nodes.filter(n=>n.isCH);
-  const ccms = nodes.filter(n=>n.isCCM);
-  chs.forEach(ch => {
-    ccms.forEach(ccm => {
-      drawEdge(ch, ccm, 0.05, 'rgba(168,85,247,0.14)', 0.8);
+  drawChannels();
+
+  particles=particles.filter(p=>p.life>0);
+  particles.forEach(p=>{
+    const al=p.life/p.maxLife;
+    ctx.save(); ctx.globalAlpha=al; ctx.fillStyle=p.color;
+    ctx.beginPath(); ctx.arc(p.x,p.y,p.size*al,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+    p.x+=p.vx; p.y+=p.vy; p.life--;
+  });
+
+  packets=packets.filter(p=>p.progress<1);
+  packets.forEach(p=>{
+    p.progress+=p.speed;
+    const x=p.x+(p.tx-p.x)*p.progress, y=p.y+(p.ty-p.y)*p.progress;
+    p.trail.push({x,y}); if(p.trail.length>8) p.trail.shift();
+    ctx.save();
+    p.trail.forEach((pt,i)=>{
+      ctx.globalAlpha=(i/p.trail.length)*0.28;
+      ctx.beginPath(); ctx.arc(pt.x,pt.y,p.size*0.55,0,Math.PI*2);
+      ctx.fillStyle=p.color; ctx.fill();
     });
-  });
-
-  // Particles
-  particles = particles.filter(p => p.life > 0);
-  particles.forEach(p => {
-    const alpha = p.life/p.maxLife;
-    ctx.save();
-    ctx.globalAlpha = alpha;
-    ctx.fillStyle = p.color;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, p.size*alpha, 0, Math.PI*2);
-    ctx.fill();
     ctx.restore();
-    p.x += p.vx; p.y += p.vy;
-    p.life--;
-  });
-
-  // Packets
-  packets = packets.filter(p => p.progress < 1);
-  packets.forEach(p => {
-    p.progress += p.speed;
-    const x = p.x + (p.tx-p.x)*p.progress;
-    const y = p.y + (p.ty-p.y)*p.progress;
     ctx.save();
-    ctx.beginPath();
-    ctx.arc(x, y, 3, 0, Math.PI*2);
-    ctx.fillStyle = p.color;
-    ctx.shadowColor = p.color;
-    ctx.shadowBlur = 10;
-    ctx.fill();
+    ctx.beginPath(); ctx.arc(x,y,p.size,0,Math.PI*2);
+    ctx.fillStyle=p.color; ctx.shadowColor=p.color; ctx.shadowBlur=9; ctx.fill();
+    if(p.icon){
+      ctx.font='8px Orbitron'; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillStyle='rgba(255,255,255,0.92)'; ctx.shadowBlur=0;
+      ctx.fillText(p.icon,x,y);
+    }
     ctx.restore();
   });
 
-  // Nodes
   nodes.forEach(drawNode);
+  committeeNodes.forEach(drawCommitteeNode);
+  drawSCNode();
+  drawGlobalModelCore();
 
-  // Consensus meter (phase 9)
-  if (currentPhase === 8) drawConsensusMeter();
+  // Bổ sung vẽ 3 khối Proposed và khối Final Aggregated
+  drawCommitteeBlocks();
+  drawFinalAggregatedBlock();
 
-  // CoCo overlay label
+  drawRewardTokens();
+  drawConsensusMeter();
   drawCocoLabel();
 
-  // Update panel title
-  const titles = { default:'NETWORK TOPOLOGY — P2P MESH', fullmesh:'NETWORK TOPOLOGY — ◈ FULL MESH (PRE-CoCo)', optimizing:'NETWORK TOPOLOGY — ◈ CoCo OPTIMIZING...', optimized:'NETWORK TOPOLOGY — ◈ OPTIMIZED SPARSE GRAPH' };
-  const titleEl = document.getElementById('topo-panel-title');
-  if (titleEl) {
-    titleEl.textContent = titles[topoMode] || titles.default;
-    titleEl.style.color = topoMode==='fullmesh'?'#00e5ff':topoMode==='optimizing'?'#ffd700':topoMode==='optimized'?'#00ff88':'';
+  const tm={default:'COBRA-DFL — BLOCKCHAIN-SECURED FEDERATED LEARNING PIPELINE',fullmesh:'TOPOLOGY — ◈ FULL MESH (PRE-CoCo)',optimizing:'TOPOLOGY — ◈ CoCo OPTIMIZING...',optimized:'TOPOLOGY — ◈ OPTIMIZED SPARSE GRAPH'};
+  const tel=document.getElementById('topo-panel-title');
+  if(tel){ tel.textContent=tm[topoMode]||tm.default; tel.style.color=topoMode==='fullmesh'?'#00e5ff':topoMode==='optimizing'?'#ffd700':topoMode==='optimized'?'#00ff88':''; }
+
+  requestAnimationFrame(draw);
+}
+
+// ── PHASE HANDLERS ────────────────────────────────────────────────
+const phaseHandlers=[
+
+// 0: INIT
+()=>{
+  log('Initializing k=4 global models...','info');
+  log('Assigning 3 Committee Validators...','info');
+  committeeNodes.forEach(cn=>{ cn.glowIntensity=1; cn.state='idle'; });
+  scNode.glowIntensity=0.35;
+  nodes.forEach(n=>n.glowIntensity=0.18);
+  addBlock('model','GENESIS MODEL BLOCK');
+  addBlock('model','MODEL BLOCK M0');
+  setTimeout(()=>addBlock('model','MODEL BLOCK M1'),400);
+  log('Models downloaded from blockchain.','ok');
+  addAttackEvent('System init — 3 Validators online','info');
+  updateMetrics();
+},
+
+// 1: CLUSTER
+()=>{
+  log('DFCA: evaluating local loss...','info');
+  nodes.forEach(n=>{ n.loss=0.3+Math.random()*0.7; n.state='idle'; });
+  electClusterHeads();
+  nodes.filter(n=>n.isCH).forEach(n=>{
+    n.glowIntensity=1;
+    log(`CH elected: N${n.id} (rep=${n.reputation}, C${n.cluster})`,'ok');
+  });
+  updateMetrics();
+},
+
+// 2: TRAIN
+()=>{
+  log('Local SGD training...','info');
+  nodes.filter(n=>!n.isOffline&&!n.isMalicious).forEach(n=>{
+    n.state='training'; n.accuracy=Math.min(0.95,n.accuracy+0.05+Math.random()*0.05);
+  });
+  let ti=0;
+  const iv=setInterval(()=>{
+    nodes.filter(n=>n.state==='training').forEach(n=>spawnGradientParticles(n));
+    if(++ti>20) clearInterval(iv);
+  },100);
+  updateMetrics();
+},
+
+// 3: PRIVACY
+()=>{
+  log('LDP clipping C=1.0 | ε=0.5, δ=1e-5','info');
+  nodes.filter(n=>!n.isOffline&&!n.isMalicious).forEach(n=>spawnNoiseParticles(n));
+  setTimeout(()=>nodes.filter(n=>!n.isOffline&&!n.isMalicious).forEach(n=>spawnNoiseParticles(n)),320);
+  updateMetrics();
+},
+
+// 4: COCO
+()=>{
+  log('CoCo: building full mesh...','info');
+  topoMode='fullmesh'; buildFullMesh();
+  cocoEdges.forEach(e=>{ e.alpha=0; e.targetAlpha=0.82; });
+  let fmi=setInterval(()=>{
+    if(topoMode!=='fullmesh'){clearInterval(fmi);return;}
+    cocoEdges.filter(e=>Math.random()<0.07).forEach(e=>spawnMeshPulse(e.a,e.b,COCO_FULL));
+    cocoEdges.forEach(e=>{ if(e.alpha<e.targetAlpha) e.alpha=Math.min(e.targetAlpha,e.alpha+0.04); });
+  },40);
+  log(`Full mesh: ${cocoEdges.length} links across 4 clusters`,'ok');
+  setTimeout(()=>{
+    clearInterval(fmi); topoMode='optimizing';
+    log('CoCo: pruning inefficient links...','info');
+    optimizeMesh();
+    compression=3.2+Math.random()*0.8;
+    const rem=cocoEdges.filter(e=>!e.surviving).length;
+    const kpt=cocoEdges.filter(e=>e.surviving).length;
+    setTimeout(()=>{
+      log(`CoCo done: ${kpt} kept, ${rem} pruned (${compression.toFixed(2)}x)`,'ok');
+      addAttackEvent(`CoCo: ${rem} links pruned, bw↓${Math.round(compression*17)}%`,'detected');
+      updateMetrics();
+    },1200);
+  },1400);
+  updateMetrics();
+},
+
+// 5: GOSSIP
+()=>{
+  log('P2P gossip exchange...','info');
+  if(topoMode==='optimized'||topoMode==='optimizing'){
+    const sv=cocoEdges.filter(e=>e.surviving);
+    let gi=0;
+    const giv=setInterval(()=>{
+      if(gi++>18){clearInterval(giv);return;}
+      const e=sv[Math.floor(Math.random()*sv.length)];
+      if(e){ spawnMeshPulse(e.a,e.b,'#00c8ff'); spawnMeshPulse(e.b,e.a,'#a855f7'); }
+    },100);
+  } else {
+    const act=nodes.filter(n=>!n.isOffline&&!n.isMalicious);
+    for(let i=0;i<14;i++){
+      const a=act[Math.floor(Math.random()*act.length)];
+      const b=act[Math.floor(Math.random()*act.length)];
+      if(a&&b&&a!==b){
+        setTimeout(()=>sendPacket(a,b,CLUSTER_COLORS[a.cluster]),i*80);
+        setTimeout(()=>sendPacket(b,a,CLUSTER_COLORS[b.cluster]),i*80+40);
+      }
+    }
+  }
+  setTimeout(()=>{ topoMode='default'; cocoEdges=[]; meshPulseParticles=[]; },1600);
+  log('Running avg aggregation done.','ok');
+  updateMetrics();
+},
+
+// 6: CLUSTER-AGG
+()=>{
+  log('BALANCE Adaptive filter...','info');
+  if(attackMode){
+    nodes.filter(n=>n.isMalicious).forEach(n=>{
+      n.state='malicious'; n.glowIntensity=0; byzantineCount++;
+      addAttackEvent(`BYZANTINE: N${n.id} REJECTED`,'byzantine');
+      log(`[BALANCE] Byzantine N${n.id} rejected!`,'err');
+    });
+  }
+  log('Shamir Secret Sharing (k=3)...','info');
+  nodes.filter(n=>n.isCH).forEach(n=>{ n.state='sending'; n.glowIntensity=0.9; spawnGradientParticles(n); });
+  addBlock('update','CLUSTER UPDATE BLOCK');
+  log('Cluster models aggregated.','ok');
+  updateMetrics();
+},
+
+// 7: CH → COMMITTEE UPLOAD
+()=>{
+  log('CH encrypting updates → Committee...','info');
+  committeeNodes.forEach(cn=>{ cn.state='verifying'; cn.glowIntensity=1; });
+  const chs=nodes.filter(n=>n.isCH);
+  chs.forEach((ch,ci)=>{
+    setTimeout(()=>{
+      log(`CH${ci}: dispatching Shamir fragments to 3 validators...`,'info');
+      sendShamirFragments(ch);
+    },ci*420);
+  });
+  addBlock('update','SHAMIR FRAGMENTS → 3 VALIDATORS');
+  log('Encrypted cluster updates in transit.','ok');
+  addAttackEvent('CH→Committee: encrypted Shamir fragments sent','consensus');
+  updateMetrics();
+},
+
+// 8: COMMITTEE VERIFICATION
+()=>{
+  log('Lagrange interpolation reconstruction...','info');
+  committeeNodes.forEach((cn,i)=>{
+    setTimeout(()=>{
+      cn.syncPulse=1; cn.validScore=0.68+Math.random()*0.3;
+      log(`${cn.label}: score=${cn.validScore.toFixed(3)}`,'info');
+      setTimeout(()=>cn.syncPulse=0.7,400);
+      setTimeout(()=>cn.syncPulse=0.45,800);
+      committeeNodes.filter((_,j)=>j!==i).forEach(target=>{
+        setTimeout(()=>{
+          packets.push({x:cn.x,y:cn.y,tx:target.x,ty:target.y,color:CC_PURP,progress:0,speed:0.026,size:2.8,icon:null,encrypted:false,trail:[]});
+        },300+i*100);
+      });
+    },i*450);
+  });
+  if(attackMode&&Math.random()<0.3){
+    addAttackEvent('MALICIOUS VALIDATOR DETECTED — view-change!','byzantine');
+    log('[WARN] Committee view-change triggered!','warn');
+  }
+  setTimeout(()=>log('Quality scores validated: threshold passed.','ok'),900);
+  updateMetrics();
+},
+
+// 9: COMMITTEE CONSENSUS
+()=>{
+  log('Committee consensus voting initiated...','info');
+  consensusProgress=0;
+  const overlay=document.getElementById('consensus-overlay');
+  overlay.style.display='block';
+  overlay.textContent='◈ COMMITTEE CONSENSUS — VOTING IN PROGRESS...';
+
+  const voteIv=setInterval(()=>{
+    consensusProgress=Math.min(1,consensusProgress+0.011);
+    committeeNodes.forEach((cn,i)=>{
+      if(consensusProgress>=(i+1)/3&&!cn.voteCast){
+        cn.voteCast=true; cn.voteValue=cn.validScore>0.5?1:0;
+        cn.voteDisplayT=1.6; cn.syncPulse=1;
+        log(`${cn.label}: ${cn.voteValue?'APPROVE':'REJECT'} (score=${cn.validScore.toFixed(2)})`,'ok');
+        committeeNodes.filter((_,j)=>j!==i).forEach(t=>{
+          packets.push({x:cn.x,y:cn.y,tx:t.x,ty:t.y,color:cn.voteValue?'#00ff88':'#ff2244',progress:0,speed:0.03,size:3,icon:cn.voteValue?'✓':'✗',trail:[]});
+        });
+      }
+    });
+
+    const votes=committeeNodes.filter(cn=>cn.voteCast&&cn.voteValue).length;
+    overlay.textContent=`◈ COMMITTEE CONSENSUS — ${votes}/${committeeNodes.length} APPROVE — ${Math.round(consensusProgress*100)}%`;
+
+    if(consensusProgress>=1){
+      clearInterval(voteIv);
+      log('2/3 threshold reached — Proposal Blocks created.','ok');
+      addAttackEvent(`CONSENSUS ACHIEVED — generating 3 block proposals`,'consensus');
+      overlay.textContent='◈ CONSENSUS ACHIEVED ✓ — COMMITTEE BLOCKS PROPOSED';
+
+      // Sinh ra 3 khối block đại diện cho 3 Validator
+      committeeBlocks = committeeNodes.map((cn, i) => ({
+          x: cn.x, y: cn.y, tx: cn.x, ty: cn.y - 35, alpha: 0, scale: 1,
+          hash: Math.random().toString(36).substring(2,8).toUpperCase(), id: i+1
+      }));
+
+      setTimeout(()=>{ overlay.style.display='none'; committeeNodes.forEach(cn=>cn.voteCast=false); },2200);
+    }
+  },75);
+  updateMetrics();
+},
+
+// 10: GLOBAL AGGREGATION
+()=>{
+  log('Weighted cluster merge & Smart Contract Block Aggregation...','info');
+  const cp=getCommitteePositions();
+  const midX=canvas.width/2, midY=(cp[0].y+cp[2].y)/2+38;
+  globalModelCore={x:midX, y:midY, r:17, alpha:0, pulseT:0};
+
+  // 1. Cho 3 khối Proposed bay đến SC
+  committeeBlocks.forEach(b => {
+    b.movingToSC = true; b.tx = scNode.x; b.ty = scNode.y; b.startX = b.x; b.startY = b.y; b.t = 0;
+  });
+
+  // 2. Chuyển đổi thành Final Aggregated Block bay sang cạnh phải
+  setTimeout(() => {
+    committeeBlocks = [];
+    finalAggregatedBlock = {
+        x: scNode.x, y: scNode.y,
+        tx: canvas.width - 80, ty: canvas.height * 0.45,
+        startX: scNode.x, startY: scNode.y, alpha: 1, scale: 0.2, t: 0,
+        hash: Math.random().toString(36).substring(2,10).toUpperCase()
+    };
+    addAttackEvent('Smart Contract merging blocks...', 'info');
+  }, 750);
+
+  // 3. Hiệu ứng Cluster update song song
+  nodes.filter(n=>n.isCH).forEach((ch,i)=>{
+    setTimeout(()=>{
+      for(let s=0;s<10;s++){
+        setTimeout(()=>{
+          const t=s/10;
+          spawnParticle(
+            ch.x+(midX-ch.x)*t, ch.y+(midY-ch.y)*t,
+            CLUSTER_COLORS[ch.cluster],
+            (midX-ch.x)/10*0.28,(midY-ch.y)/10*0.28,
+            28+s*3, 2.5
+          );
+        },s*55);
+      }
+      sendPacket(ch,{x:midX,y:midY},CLUSTER_COLORS[ch.cluster],{size:4,speed:0.011});
+    },i*300);
+  });
+
+  setTimeout(()=>{
+    addBlock('global',`FINAL AGGREGATED BLOCK — ROUND ${round}`);
+    log('Final Global Model formed and committed to Blockchain.','ok');
+    committeeNodes.forEach((cn,i)=>{
+      setTimeout(()=>sendPacket(cn,scNode,CC_PURP,{size:3.5,icon:'⬡',speed:0.02}),i*200);
+    });
+    scNode.glowIntensity=0.9;
+  },1800);
+  updateMetrics();
+},
+
+// 11: SMART CONTRACT ENGINE
+()=>{
+  log('Smart Contract Engine activated!','info');
+  scNode.glowIntensity=1; scNode.activationT=1;
+  for(let i=0;i<12;i++){
+    const a=i/12*Math.PI*2;
+    spawnParticle(scNode.x,scNode.y,CC_PURP,Math.cos(a)*2,Math.sin(a)*2,48,2.5);
+  }
+  addAttackEvent('SMART CONTRACT: reward distribution started','consensus');
+
+  const honest=nodes.filter(n=>!n.isMalicious&&!n.isOffline);
+  honest.forEach((n,i)=>{
+    setTimeout(()=>{
+      n.reputation=Math.min(100,n.reputation+5+Math.floor(Math.random()*8));
+      n.rewardAnim=1;
+      spawnRewardToken(scNode,n,CC_GOLD);
+    },i*65);
+  });
+
+  if(attackMode){
+    nodes.filter(n=>n.isMalicious).forEach(n=>{
+      n.reputation=Math.max(0,n.reputation-20);
+      addAttackEvent(`SC PENALTY: N${n.id} rep=${n.reputation}`,'byzantine');
+      sendPacket(scNode,n,'#ff2244',{size:3,icon:'✗',speed:0.019});
+    });
   }
 
-  animFrame = requestAnimationFrame(draw);
-}
-
-function drawConsensusMeter() {
-  const x = canvas.width - 80, y = 40;
-  const pct = Math.min(1, (Date.now()%3000)/3000);
-  ctx.save();
-  ctx.strokeStyle = 'rgba(255,255,255,0.1)';
-  ctx.lineWidth = 4;
-  ctx.beginPath();
-  ctx.arc(x, y, 25, 0, Math.PI*2);
-  ctx.stroke();
-  ctx.strokeStyle = pct > 0.67 ? '#00ff88' : '#ffd700';
-  ctx.lineWidth = 4;
-  ctx.beginPath();
-  ctx.arc(x, y, 25, -Math.PI/2, -Math.PI/2 + pct*Math.PI*2);
-  ctx.stroke();
-  ctx.fillStyle = '#fff';
-  ctx.font = '8px Share Tech Mono';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(`${Math.round(pct*100)}%`, x, y);
-  ctx.fillStyle = 'rgba(255,255,255,0.3)';
-  ctx.font = '7px Share Tech Mono';
-  ctx.fillText('VOTES', x, y+14);
-  ctx.restore();
-}
-
-function getClusterCenters() {
-  const W = canvas.width, H = canvas.height;
-  const cx = W/2, cy = H/2;
-  return [
-    {x: cx-W*0.28, y: cy-H*0.2},
-    {x: cx+W*0.28, y: cy-H*0.2},
-    {x: cx-W*0.28, y: cy+H*0.2},
-    {x: cx+W*0.28, y: cy+H*0.2},
-  ];
-}
-
-// ─── BLOCKCHAIN ───
-let blockCount = 0;
-function addBlock(type, label) {
-  blockCount++;
-  const hash = Math.random().toString(36).substring(2,10).toUpperCase();
-  const el = document.createElement('div');
-  el.className = `block ${type}`;
-  el.innerHTML = `<div>#${blockCount} ${label}</div><div class="block-hash">0x${hash}...${hash.split('').reverse().join('')}</div>`;
-  document.getElementById('blockchain-scroll').prepend(el);
-}
-
-// ─── METRICS UPDATE ───
-function updateMetrics() {
-  accuracy = Math.min(99.5, accuracy + (Math.random()*2-0.2));
-  if (accuracy < 0) accuracy = 0;
-  consensusRate = 70 + Math.sin(Date.now()/2000)*15;
-  latency = 20 + Math.floor(Math.random()*80);
-  compression = 1 + (currentPhase>=4 ? 2.5+Math.random() : 0);
-  commCost = Math.min(150, commCost + 0.5+Math.random()*2);
-
-  document.getElementById('m-acc').textContent = accuracy.toFixed(1)+'%';
-  document.getElementById('mb-acc').style.width = accuracy+'%';
-  document.getElementById('m-cons').textContent = Math.round(consensusRate)+'%';
-  document.getElementById('mb-cons').style.width = consensusRate+'%';
-  document.getElementById('m-byz').textContent = byzantineCount;
-  document.getElementById('mb-byz').style.width = Math.min(100,byzantineCount*25)+'%';
-  document.getElementById('m-lat').textContent = latency+'ms';
-  document.getElementById('mb-lat').style.width = Math.min(100,latency/2)+'%';
-  document.getElementById('m-comp').textContent = compression.toFixed(1)+'x';
-  document.getElementById('mb-comp').style.width = Math.min(100,compression/5*100)+'%';
-  document.getElementById('m-comm').textContent = commCost.toFixed(0)+'MB';
-  document.getElementById('mb-comm').style.width = Math.min(100,commCost/1.5)+'%';
-}
-
-// ─── PHASE HANDLERS ───
-const phaseHandlers = [
-  // Phase 1: Init
-  () => {
-    log('Initializing k=4 global model heads...', 'info');
-    log('Selecting CCM by reputation rank...', 'info');
-    electCCM();
-    nodes.forEach(n => { n.glowIntensity = n.isCCM ? 1 : 0.3; });
-    addBlock('model', 'GENESIS MODEL BLOCK');
-    addBlock('model', 'MODEL BLOCK M0');
-    setTimeout(()=>addBlock('model','MODEL BLOCK M1'),400);
-    log('Models downloaded from blockchain.', 'ok');
-    updateMetrics();
-  },
-  // Phase 2: Clustering
-  () => {
-    log('Evaluating local loss per node...', 'info');
-    nodes.forEach(n => {
-      n.loss = 0.3 + Math.random()*0.7;
-      n.state = 'idle';
-    });
-    log('DFCA self-assignment complete.', 'ok');
-    electClusterHeads();
-    nodes.filter(n=>n.isCH).forEach(n => {
-      n.glowIntensity = 1;
-      log(`CH elected: N${n.id} (rep=${n.reputation}, cluster=${n.cluster})`, 'ok');
-    });
-    updateMetrics();
-  },
-  // Phase 3: Training
-  () => {
-    log('Starting local SGD training...', 'info');
-    nodes.filter(n=>!n.isOffline&&!n.isMalicious).forEach(n => {
-      n.state = 'training';
-      n.accuracy = Math.min(0.95, n.accuracy + 0.05 + Math.random()*0.05);
-    });
-    // gradient particles
-    let t = 0;
-    const interval = setInterval(() => {
-      nodes.filter(n=>n.state==='training').forEach(n => spawnGradientParticles(n));
-      t++;
-      if (t > 20) clearInterval(interval);
-    }, 100);
-    log('Local updates generated.', 'ok');
-    updateMetrics();
-  },
-  // Phase 4: Privacy
-  () => {
-    log('Applying LDP gradient clipping (C=1.0)...', 'info');
-    log(`Privacy params: ε=0.5, δ=1e-5`, 'info');
-    nodes.filter(n=>!n.isOffline&&!n.isMalicious).forEach(n => spawnNoiseParticles(n));
+  committeeNodes.forEach((cn,i)=>{
     setTimeout(()=>{
-      nodes.filter(n=>!n.isOffline&&!n.isMalicious).forEach(n => spawnNoiseParticles(n));
-    },300);
-    log('Gaussian noise injected. Updates privatized.', 'ok');
-    updateMetrics();
-  },
-  // Phase 5: COCO
-  () => {
-    log('CoCo: Building full intra-cluster mesh topology...', 'info');
+      cn.reputation=Math.min(100,cn.reputation+8);
+      spawnRewardToken(scNode,cn,CC_PURP);
+    },i*180+600);
+  });
 
-    // ── Step 1: Show full mesh ──
-    topoMode = 'fullmesh';
-    buildFullMesh();
-    // Fade in all edges
-    cocoEdges.forEach(e => { e.alpha = 0; e.targetAlpha = 0.85; });
+  setTimeout(()=>{
+    addBlock('consensus',`SC: REWARDS DISTRIBUTED — ROUND ${round}`);
+    log('Reputation updates applied. Round complete.','ok');
+    round++; epoch=Math.floor(round/12);
+    document.getElementById('round-display').textContent=`ROUND: ${round} / EPOCH: ${epoch}`;
+    nodes.forEach(n=>{ n.state='idle'; n.glowIntensity=0; });
+    committeeNodes.forEach(cn=>{ cn.state='idle'; cn.glowIntensity=0.4; });
+    scNode.glowIntensity=0.2; globalModelCore=null;
+    updateMetrics();
+  },1400);
+},
 
-    // Pulse packets along full mesh while showing it
-    let fullMeshInterval = setInterval(() => {
-      if (topoMode !== 'fullmesh') { clearInterval(fullMeshInterval); return; }
-      cocoEdges.filter(e => Math.random() < 0.08).forEach(e => {
-        spawnMeshPulse(Math.random()<0.5 ? e.a : e.b, Math.random()<0.5 ? e.b : e.a, COCO_FULL_COLOR);
-      });
-      // Animate alpha fade-in
-      cocoEdges.forEach(e => {
-        if (e.alpha < e.targetAlpha) e.alpha = Math.min(e.targetAlpha, e.alpha + 0.04);
-      });
-    }, 40);
-
-    log(`Full mesh established: ${cocoEdges.length} active links across 4 clusters`, 'ok');
-
-    // ── Step 2: After 1.4s start optimization ──
-    setTimeout(() => {
-      clearInterval(fullMeshInterval);
-      topoMode = 'optimizing';
-      log('CoCo: Computing consensus distances...', 'info');
-      log('CoCo: Pruning inefficient communication links...', 'info');
-      optimizeMesh();
-      compression = 3.2 + Math.random() * 0.8;
-      const removedCount = cocoEdges.filter(e => !e.surviving).length;
-      const keptCount = cocoEdges.filter(e => e.surviving).length;
-      setTimeout(() => {
-        log(`CoCo complete: ${keptCount} links kept, ${removedCount} pruned. Compression: ${compression.toFixed(2)}x`, 'ok');
-        addAttackEvent(`CoCo: topology optimized (${removedCount} links removed)`, 'detected');
-        updateMetrics();
-      }, 1200);
-    }, 1400);
-
-    updateMetrics();
-  },
-  // Phase 6: Gossip
-  () => {
-    log('Initiating P2P gossip protocol...', 'info');
-    // Keep optimized mesh visible during gossip — packets flow on surviving links
-    if (topoMode === 'optimized' || topoMode === 'optimizing') {
-      const surviving = cocoEdges.filter(e => e.surviving);
-      let gIdx = 0;
-      const gossipInterval = setInterval(() => {
-        if (gIdx++ > 18) { clearInterval(gossipInterval); return; }
-        const e = surviving[Math.floor(Math.random() * surviving.length)];
-        if (e) {
-          spawnMeshPulse(e.a, e.b, '#00c8ff');
-          spawnMeshPulse(e.b, e.a, '#a855f7');
-        }
-      }, 100);
-    } else {
-      const active = nodes.filter(n=>!n.isOffline&&!n.isMalicious);
-      for (let i = 0; i < 15; i++) {
-        const a = active[Math.floor(Math.random()*active.length)];
-        const b = active[Math.floor(Math.random()*active.length)];
-        if (a && b && a!==b) {
-          setTimeout(()=>sendPacket(a,b,CLUSTER_COLORS[a.cluster]), i*80);
-          setTimeout(()=>sendPacket(b,a,CLUSTER_COLORS[b.cluster]), i*80+40);
-        }
-      }
-    }
-    // Fade out mesh after gossip
-    setTimeout(() => { topoMode = 'default'; cocoEdges = []; meshPulseParticles = []; }, 1600);
-    log('Running avg aggregation: sequential fusion complete.', 'ok');
-    updateMetrics();
-  },
-  // Phase 7: Cluster Aggregation
-  () => {
-    log('CH running BALANCE Adaptive filter...', 'info');
-    if (attackMode) {
-      const malicious = nodes.filter(n=>n.isMalicious);
-      malicious.forEach(n => {
-        n.state = 'malicious';
-        n.glowIntensity = 0;
-        byzantineCount++;
-        addAttackEvent(`BYZANTINE: N${n.id} update REJECTED`, 'byzantine');
-        log(`[BALANCE] Byzantine node N${n.id} detected & rejected!`, 'err');
-      });
-    }
-    log('Applying Shamir Secret Sharing (k=3 of 5)...', 'info');
-    const ccms = nodes.filter(n=>n.isCCM);
-    const chs = nodes.filter(n=>n.isCH);
-    chs.forEach(ch => {
-      ccms.forEach((ccm,i) => {
-        setTimeout(()=>sendPacket(ch,ccm,'rgba(168,85,247,0.8)'), i*120);
-      });
-    });
-    addBlock('update', 'CLUSTER UPDATE BLOCK');
-    log('Secret shares distributed to CCM.', 'ok');
-    updateMetrics();
-  },
-  // Phase 8: Verification
-  () => {
-    log('CCM reconstructing updates (Lagrange interpolation)...', 'info');
-    nodes.filter(n=>n.isCCM).forEach(n => { n.state='verifying'; n.glowIntensity=0.8; });
-    log('Threshold validation: 4/5 CCM agree.', 'ok');
-    if (attackMode && Math.random()<0.3) {
-      addAttackEvent('COMMITTEE FAILURE: View-change triggered!', 'byzantine');
-      log('[WARN] Committee failure detected! Electing new CCM...', 'warn');
-      setTimeout(()=>{
-        nodes.filter(n=>n.isCCM).forEach(n=>{ n.isCCM=false; n.state='idle'; });
-        electCCM();
-      },600);
-    }
-    log('Validation scoring complete.', 'ok');
-    updateMetrics();
-  },
-  // Phase 9: Consensus
-  () => {
-    log('Computing median score across CCM...', 'info');
-    log('Filtering qualified updates (score > threshold)...', 'info');
-    const ccms = nodes.filter(n=>n.isCCM);
-    ccms.forEach((n,i) => {
-      setTimeout(()=>sendPacket(n, nodes[Math.floor(Math.random()*nodes.length)], '#00c8ff'), i*100);
-    });
-    setTimeout(()=>{
-      addBlock('consensus', 'UPDATE BLOCK (2/3 CONSENSUS)');
-      addBlock('consensus', 'FINALIZED — ROUND '+round);
-      log('Block finalized on chain. Consensus achieved!', 'ok');
-    }, 500);
-    updateMetrics();
-  },
-  // Phase 10: Global Agg
-  () => {
-    log('Smart contract triggered: aggregation begin...', 'info');
-    nodes.filter(n=>n.isCH).forEach(n=>{
-      n.glowIntensity = 1;
-      n.state = 'sending';
-      spawnGradientParticles(n);
-    });
-    setTimeout(()=>{
-      addBlock('model', `NEW GLOBAL MODEL (ROUND ${round})`);
-      log('New global models generated. Round complete.', 'ok');
-      nodes.forEach(n=>{ if(n.state==='sending') n.state='idle'; });
-    },500);
-    updateMetrics();
-  },
-  // Phase 11: Reputation
-  () => {
-    log('Updating reputation scores...', 'info');
-    nodes.forEach(n => {
-      if (n.isMalicious) {
-        n.reputation = Math.max(0, n.reputation - 20);
-        addAttackEvent(`PENALIZED: N${n.id} rep=${n.reputation}`, 'byzantine');
-      } else if (!n.isOffline) {
-        n.reputation = Math.min(100, n.reputation + 5 + Math.floor(Math.random()*8));
-        n.rewardAnim = 1;
-      }
-      n.state = 'idle';
-      n.glowIntensity = 0;
-    });
-    round++;
-    epoch = Math.floor(round/11);
-    document.getElementById('round-display').textContent = `ROUND: ${round} / EPOCH: ${epoch}`;
-    log(`Round ${round} complete. Starting next round...`, 'ok');
-    updateMetrics();
-  },
 ];
 
-// ─── STEP ENGINE ───
-let stepQueue = [];
-
-function buildStepQueue() {
-  stepQueue = [];
-  PHASES.forEach((phase, pi) => {
-    phase.steps.forEach((step, si) => {
-      stepQueue.push({ phaseIdx: pi, stepIdx: si, phase, step });
-    });
-  });
+// ── METRICS ───────────────────────────────────────────────────────
+function updateMetrics(){
+  accuracy=Math.min(99.5,accuracy+(Math.random()*1.7-0.12));
+  if(accuracy<0) accuracy=0;
+  consensusRate=70+Math.sin(Date.now()/2000)*14;
+  latency=20+Math.floor(Math.random()*72);
+  compression=1+(currentPhase>=4?2.5+Math.random():0);
+  commCost=Math.min(150,commCost+0.5+Math.random()*2);
+  document.getElementById('m-acc').textContent=accuracy.toFixed(1)+'%';
+  document.getElementById('mb-acc').style.width=accuracy+'%';
+  document.getElementById('m-cons').textContent=Math.round(consensusRate)+'%';
+  document.getElementById('mb-cons').style.width=consensusRate+'%';
+  document.getElementById('m-byz').textContent=byzantineCount;
+  document.getElementById('mb-byz').style.width=Math.min(100,byzantineCount*25)+'%';
+  document.getElementById('m-lat').textContent=latency+'ms';
+  document.getElementById('mb-lat').style.width=Math.min(100,latency/2)+'%';
+  document.getElementById('m-comp').textContent=compression.toFixed(1)+'x';
+  document.getElementById('mb-comp').style.width=Math.min(100,compression/5*100)+'%';
+  document.getElementById('m-comm').textContent=commCost.toFixed(0)+'MB';
+  document.getElementById('mb-comm').style.width=Math.min(100,commCost/1.5)+'%';
 }
 
-let stepIndex = 0;
+// ── STEP ENGINE ───────────────────────────────────────────────────
+let stepQueue=[], stepIndex=0;
 
-function runStep() {
-  if (stepIndex >= stepQueue.length) {
-    // Loop
-    stepIndex = 0;
-    nodes.forEach(n => { n.state='idle'; n.isCH=false; n.isCCM=false; n.glowIntensity=0; n.updateSent=false; });
-    if (attackMode) {
-      const malNodes = [2,7,13];
-      malNodes.forEach(i=>{ if(nodes[i]) nodes[i].isMalicious=true; });
-    } else {
-      nodes.forEach(n=>n.isMalicious=false);
-    }
+function buildStepQueue(){
+  stepQueue=[];
+  PHASES.forEach((phase,pi)=>phase.steps.forEach((step,si)=>stepQueue.push({phaseIdx:pi,stepIdx:si,phase,step})));
+}
+
+function runStep(){
+  if(stepIndex>=stepQueue.length){
+    stepIndex=0;
+    nodes.forEach(n=>{ n.state='idle'; n.isCH=false; n.glowIntensity=0; });
+    committeeNodes.forEach(cn=>{ cn.state='idle'; cn.glowIntensity=0.45; cn.voteCast=false; cn.voteDisplayT=0; });
+    globalModelCore=null; rewardTokens=[]; committeeBlocks=[]; finalAggregatedBlock=null;
+    consensusProgress=0;
+    if(attackMode) [2,7,13].forEach(i=>{if(nodes[i])nodes[i].isMalicious=true;});
+    else nodes.forEach(n=>n.isMalicious=false);
   }
 
-  const item = stepQueue[stepIndex];
-  currentPhase = item.phaseIdx;
-  currentStep = item.stepIdx;
+  const item=stepQueue[stepIndex];
+  currentPhase=item.phaseIdx; currentStep=item.stepIdx;
 
-  // Update UI
-  document.getElementById('phase-badge').textContent = item.phase.name;
-  document.getElementById('step-label').textContent = `▶ ${item.phase.label} → ${item.step}`;
-  const progress = (stepIndex / stepQueue.length) * 100;
-  document.getElementById('progress-fill').style.width = progress+'%';
+  document.getElementById('phase-badge').textContent=item.phase.name;
+  document.getElementById('step-label').textContent=`▶ ${item.phase.label} → ${item.step}`;
+  document.getElementById('progress-fill').style.width=((stepIndex/stepQueue.length)*100)+'%';
 
-  // Update phase chips
-  document.querySelectorAll('.phase-chip').forEach((c,i) => {
+  document.querySelectorAll('.phase-chip').forEach((c,i)=>{
     c.classList.remove('active','done');
-    if (i === currentPhase) c.classList.add('active');
-    else if (i < currentPhase) c.classList.add('done');
+    if(i===currentPhase) c.classList.add('active');
+    else if(i<currentPhase) c.classList.add('done');
   });
 
-  // Run phase handler on first step of each phase
-  if (item.stepIdx === 0 && phaseHandlers[item.phaseIdx]) {
-    phaseHandlers[item.phaseIdx]();
-  }
-
-  log(`[STEP] ${item.phase.label}: ${item.step}`, 'info');
+  if(item.stepIdx===0&&phaseHandlers[item.phaseIdx]) phaseHandlers[item.phaseIdx]();
+  log(`[STEP] ${item.phase.label}: ${item.step}`,'info');
   updateMetrics();
-
   stepIndex++;
 }
 
-function scheduleNext() {
-  if (!playing) return;
-  const speed = parseInt(document.getElementById('speed').value);
-  const delay = [2000, 1200, 700, 400, 200][speed-1];
-  stepTimer = setTimeout(() => {
-    runStep();
-    scheduleNext();
-  }, delay);
+function scheduleNext(){
+  if(!playing) return;
+  const spd=parseInt(document.getElementById('speed').value);
+  const delay=[2200,1300,750,420,200][spd-1];
+  stepTimer=setTimeout(()=>{ runStep(); scheduleNext(); },delay);
 }
 
-function togglePlay() {
-  playing = !playing;
-  const btn = document.getElementById('btn-play');
-  if (playing) {
-    btn.textContent = '⏸ PAUSE';
-    btn.classList.add('active');
-    scheduleNext();
-  } else {
-    btn.textContent = '▶ PLAY';
-    btn.classList.remove('active');
-    clearTimeout(stepTimer);
-  }
+function togglePlay(){
+  playing=!playing;
+  const btn=document.getElementById('btn-play');
+  if(playing){ btn.textContent='⏸ PAUSE'; btn.classList.add('active'); scheduleNext(); }
+  else{ btn.textContent='▶ PLAY'; btn.classList.remove('active'); clearTimeout(stepTimer); }
 }
+function nextStep(){ clearTimeout(stepTimer); runStep(); if(playing) scheduleNext(); }
+function prevStep(){ clearTimeout(stepTimer); stepIndex=Math.max(0,stepIndex-2); runStep(); if(playing) scheduleNext(); }
 
-function nextStep() {
-  clearTimeout(stepTimer);
-  runStep();
-  if (playing) scheduleNext();
-}
-
-function prevStep() {
-  clearTimeout(stepTimer);
-  stepIndex = Math.max(0, stepIndex - 2);
-  runStep();
-  if (playing) scheduleNext();
-}
-
-function resetSim() {
-  clearTimeout(stepTimer);
-  clearInterval(cocoOptTimer);
-  stepIndex = 0;
-  round = 0; epoch = 0;
-  byzantineCount = 0; accuracy = 30; consensusRate = 70; latency = 0; commCost = 0;
-  particles = []; packets = []; cocoEdges = []; meshPulseParticles = [];
-  topoMode = 'default'; topoShowFull = false;
-  cocoOptProgress = 0;
-  const tb = document.getElementById('btn-topo');
-  if (tb) { tb.textContent = '⬡ FULL MESH'; tb.classList.remove('active'); }
-  document.getElementById('blockchain-scroll').innerHTML = '';
-  document.getElementById('attack-log').innerHTML = '';
-  document.getElementById('log-panel').innerHTML = '';
+function resetSim(){
+  clearTimeout(stepTimer); clearInterval(cocoOptTimer);
+  stepIndex=0; round=0; epoch=0;
+  byzantineCount=0; accuracy=30; consensusRate=70; latency=0; commCost=0;
+  particles=[]; packets=[]; cocoEdges=[]; meshPulseParticles=[]; rewardTokens=[];
+  topoMode='default'; topoShowFull=false; cocoOptProgress=0; consensusProgress=0;
+  committeeBlocks=[]; finalAggregatedBlock=null; globalModelCore=null;
+  const tb=document.getElementById('btn-topo');
+  if(tb){ tb.textContent='⬡ MESH'; tb.classList.remove('active'); }
+  document.getElementById('blockchain-scroll').innerHTML='';
+  document.getElementById('attack-log').innerHTML='';
+  document.getElementById('log-panel').innerHTML='';
+  document.getElementById('consensus-overlay').style.display='none';
   addBlock('genesis','GENESIS BLOCK');
-  resize();
-  initNodes();
-  buildStepQueue();
-  if (playing) scheduleNext();
-  log('Simulation reset.', 'ok');
+  resize(); initNodes(); buildStepQueue();
+  if(playing) scheduleNext();
 }
 
-function toggleTopoMesh() {
-  const btn = document.getElementById('btn-topo');
-  if (topoMode === 'default' || topoMode === 'fullmesh' && topoShowFull) {
-    // Force show full mesh
-    if (cocoEdges.length === 0) buildFullMesh();
-    cocoEdges.forEach(e => {
-      e.alpha = e.targetAlpha = 0.85;
-      e.surviving = true;
-      e.width = 1.5;
-      e.color = COCO_FULL_COLOR;
-    });
-    topoShowFull = !topoShowFull;
-    if (topoShowFull) {
-      if (topoMode === 'default') topoMode = 'fullmesh';
-      btn.textContent = '⬡ OPTIMIZED'; btn.classList.add('active');
-    } else {
-      topoMode = 'default'; cocoEdges = []; meshPulseParticles = [];
-      btn.textContent = '⬡ FULL MESH'; btn.classList.remove('active');
-    }
+function toggleTopoMesh(){
+  const btn=document.getElementById('btn-topo');
+  topoShowFull=!topoShowFull;
+  if(topoShowFull){
+    if(cocoEdges.length===0) buildFullMesh();
+    cocoEdges.forEach(e=>{ e.alpha=e.targetAlpha=0.82; e.surviving=true; e.width=1.4; e.color=COCO_FULL; });
+    if(topoMode==='default') topoMode='fullmesh';
+    btn.textContent='⬡ OPTIMIZED'; btn.classList.add('active');
   } else {
-    topoShowFull = !topoShowFull;
-    if (topoShowFull) {
-      btn.textContent = '⬡ OPTIMIZED'; btn.classList.add('active');
-    } else {
-      btn.textContent = '⬡ FULL MESH'; btn.classList.remove('active');
-    }
+    if(topoMode==='fullmesh'){ topoMode='default'; cocoEdges=[]; meshPulseParticles=[]; }
+    btn.textContent='⬡ MESH'; btn.classList.remove('active');
   }
 }
 
-function toggleAttack() {
-  attackMode = !attackMode;
-  const btn = document.getElementById('btn-attack');
-  btn.classList.toggle('active', attackMode);
-  if (attackMode) {
-    addAttackEvent('ATTACK MODE ENABLED — Byzantine nodes active', 'byzantine');
-    log('⚠ Attack mode enabled!', 'err');
-    const malNodes = [2,7,13];
-    malNodes.forEach(i=>{ if(nodes[i]) { nodes[i].isMalicious=true; nodes[i].state='malicious'; } });
+function toggleAttack(){
+  attackMode=!attackMode;
+  document.getElementById('btn-attack').classList.toggle('active',attackMode);
+  if(attackMode){
+    addAttackEvent('ATTACK MODE — Byzantine nodes active','byzantine');
+    [2,7,13].forEach(i=>{if(nodes[i]){nodes[i].isMalicious=true;nodes[i].state='malicious';}});
   } else {
     nodes.forEach(n=>{ n.isMalicious=false; if(n.state==='malicious') n.state='idle'; });
-    addAttackEvent('Attack mode disabled', 'detected');
-    log('Attack mode disabled.', 'ok');
+    addAttackEvent('Attack mode disabled','detected');
   }
 }
 
-function addAttackEvent(text, type) {
-  const el = document.createElement('div');
-  el.className = `attack-event ${type}`;
-  el.textContent = `[${new Date().toLocaleTimeString()}] ${text}`;
-  const log = document.getElementById('attack-log');
-  log.prepend(el);
-  if (log.children.length > 40) log.removeChild(log.lastChild);
+function addAttackEvent(text,type){
+  const el=document.createElement('div');
+  el.className=`attack-event ${type}`;
+  el.textContent=`[${new Date().toLocaleTimeString()}] ${text}`;
+  const al=document.getElementById('attack-log');
+  al.prepend(el);
+  if(al.children.length>55) al.removeChild(al.lastChild);
 }
 
-// ─── LOG ───
-function log(msg, type='info') {
-  if (!logOpen) return;
-  const el = document.createElement('div');
-  el.className = `log-line ${type}`;
-  el.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
-  const panel = document.getElementById('log-panel');
-  panel.appendChild(el);
-  panel.scrollTop = panel.scrollHeight;
-  if (panel.children.length > 200) panel.removeChild(panel.firstChild);
+function log(msg,type='info'){
+  if(!logOpen) return;
+  const el=document.createElement('div');
+  el.className=`log-line ${type}`;
+  el.textContent=`[${new Date().toLocaleTimeString()}] ${msg}`;
+  const p=document.getElementById('log-panel');
+  p.appendChild(el); p.scrollTop=p.scrollHeight;
+  if(p.children.length>200) p.removeChild(p.firstChild);
 }
 
-function toggleLog() {
-  logOpen = !logOpen;
-  document.getElementById('log-panel').style.display = logOpen ? 'block' : 'none';
+function toggleLog(){
+  logOpen=!logOpen;
+  document.getElementById('log-panel').style.display=logOpen?'block':'none';
 }
 
-// ─── TOOLTIP ───
-canvas.addEventListener('mousemove', e => {
-  const rect = canvas.getBoundingClientRect();
-  const mx = e.clientX - rect.left;
-  const my = e.clientY - rect.top;
-  const tooltip = document.getElementById('tooltip');
-  let found = false;
-  for (const n of nodes) {
-    if (Math.hypot(n.x-mx, n.y-my) < 15) {
-      tooltip.style.display = 'block';
-      tooltip.style.left = (e.clientX+14)+'px';
-      tooltip.style.top = (e.clientY-10)+'px';
-      tooltip.innerHTML = `
-        N${n.id} | Cluster ${n.cluster}<br>
-        State: <b>${n.state}</b><br>
-        Rep: ${n.reputation}/100<br>
-        Loss: ${n.loss.toFixed(3)}<br>
-        Acc: ${(n.accuracy*100).toFixed(1)}%<br>
-        ${n.isCH?'★ CLUSTER HEAD<br>':''}${n.isCCM?'◆ CCM MEMBER<br>':''}${n.isMalicious?'⚠ MALICIOUS':''}
-      `;
-      found = true;
-      break;
+canvas.addEventListener('mousemove',e=>{
+  const rect=canvas.getBoundingClientRect();
+  const mx=e.clientX-rect.left, my=e.clientY-rect.top;
+  const tt=document.getElementById('tooltip');
+  let found=false;
+  for(const cn of committeeNodes){
+    if(Math.hypot(cn.x-mx,cn.y-my)<23){
+      tt.style.display='block'; tt.style.left=(e.clientX+14)+'px'; tt.style.top=(e.clientY-10)+'px';
+      tt.innerHTML=`◆ ${cn.label} — COMMITTEE VALIDATOR<br>Rep: ${cn.reputation}/100<br>State: ${cn.state}<br>Score: ${cn.validScore.toFixed(3)}<br>Votes cast: ${cn.voteCast?'YES':'NO'}`;
+      found=true; break;
     }
   }
-  if (!found) tooltip.style.display = 'none';
+  if(!found&&scNode&&Math.hypot(scNode.x-mx,scNode.y-my)<20){
+    tt.style.display='block'; tt.style.left=(e.clientX+14)+'px'; tt.style.top=(e.clientY-10)+'px';
+    tt.innerHTML=`⬡ SMART CONTRACT<br>Manages rewards, reputation<br>penalties & round triggers.<br>Activation: ${scNode.activationT>0?'ACTIVE':'IDLE'}`;
+    found=true;
+  }
+  if(!found){
+    for(const n of nodes){
+      if(Math.hypot(n.x-mx,n.y-my)<14){
+        tt.style.display='block'; tt.style.left=(e.clientX+14)+'px'; tt.style.top=(e.clientY-10)+'px';
+        tt.innerHTML=`N${n.id} | Cluster ${n.cluster}<br>State: <b>${n.state}</b><br>Rep: ${n.reputation}/100<br>Loss: ${n.loss.toFixed(3)}<br>Acc: ${(n.accuracy*100).toFixed(1)}%<br>${n.isCH?'★ CLUSTER HEAD<br>':''}${n.isMalicious?'⚠ MALICIOUS':''}`;
+        found=true; break;
+      }
+    }
+  }
+  if(!found) tt.style.display='none';
 });
-canvas.addEventListener('mouseleave', () => { document.getElementById('tooltip').style.display='none'; });
+canvas.addEventListener('mouseleave',()=>document.getElementById('tooltip').style.display='none');
 
-// ─── PHASE CHIPS ───
-function buildPhaseChips() {
-  const container = document.getElementById('phase-chips');
-  container.innerHTML = '';
-  PHASES.forEach((p,i) => {
-    const chip = document.createElement('div');
-    chip.className = 'phase-chip';
-    chip.textContent = p.name;
-    chip.title = p.label;
-    container.appendChild(chip);
+function buildPhaseChips(){
+  const c=document.getElementById('phase-chips'); c.innerHTML='';
+  PHASES.forEach((p,i)=>{
+    const chip=document.createElement('div');
+    chip.className='phase-chip'+(i>=7?' commit-style':'');
+    chip.textContent=p.name; chip.title=p.label;
+    c.appendChild(chip);
   });
 }
 
-// ─── BACKGROUND PARTICLES ───
-function ambientParticles() {
-  if (Math.random() < 0.1) {
-    const n = nodes[Math.floor(Math.random()*nodes.length)];
-    if (n && !n.isOffline && n.state !== 'idle') {
-      spawnParticle(n.x, n.y, CLUSTER_COLORS[n.cluster],
-        (Math.random()-.5)*0.5, -0.5-Math.random(), 80+Math.random()*40);
-    }
+function ambientParticles(){
+  if(Math.random()<0.07){
+    const n=nodes[Math.floor(Math.random()*nodes.length)];
+    if(n&&!n.isOffline&&n.state!=='idle')
+      spawnParticle(n.x,n.y,CLUSTER_COLORS[n.cluster],(Math.random()-.5)*0.45,-0.45-Math.random(),65+Math.random()*30);
+  }
+  if(Math.random()<0.04&&committeeNodes.length){
+    const cn=committeeNodes[Math.floor(Math.random()*committeeNodes.length)];
+    const a=Math.random()*Math.PI*2;
+    spawnParticle(cn.x,cn.y,CC_GOLD,Math.cos(a)*0.38,Math.sin(a)*0.38-0.28,45+Math.random()*25,1.5);
   }
   requestAnimationFrame(ambientParticles);
 }
 
-// ─── INIT ───
-window.addEventListener('resize', () => { resize(); });
+let blockCount=0;
+function addBlock(type,label){
+  blockCount++;
+  const hash=Math.random().toString(36).substring(2,10).toUpperCase();
+  const el=document.createElement('div');
+  el.className=`block ${type}`;
+  el.innerHTML=`<div>#${blockCount} ${label}</div><div class="block-hash">0x${hash}...${hash.split('').reverse().join('')}</div>`;
+  document.getElementById('blockchain-scroll').prepend(el);
+}
 
-// Bootstrap
+// ── BOOTSTRAP ─────────────────────────────────────────────────────
+window.addEventListener('resize',()=>resize());
 addBlock('genesis','GENESIS BLOCK');
-resize();
-initNodes();
-buildPhaseChips();
-buildStepQueue();
-
-// Start render loop
-draw();
-ambientParticles();
-
-// Auto start
-scheduleNext();
+resize(); initNodes(); buildPhaseChips(); buildStepQueue();
+draw(); ambientParticles(); scheduleNext();
 </script>
 </body>
 </html>
